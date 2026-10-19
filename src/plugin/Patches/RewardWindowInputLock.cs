@@ -1,9 +1,11 @@
 using Assets.Scripts.UI.InGame.Rewards;
 using HarmonyLib;
 using MegabonkTogether.Configuration;
+using MegabonkTogether.Helpers;
 using MegabonkTogether.Services;
 using Microsoft.Extensions.DependencyInjection;
 using System.Collections.Generic;
+using System.Linq;
 using System.Reflection;
 using UnityEngine;
 
@@ -41,11 +43,16 @@ namespace MegabonkTogether.Patches
     {
         public static IEnumerable<MethodBase> TargetMethods()
         {
-            yield return AccessTools.Method(typeof(LevelupScreen), nameof(LevelupScreen.Open));
-            yield return AccessTools.Method(typeof(ChestWindowUi), nameof(ChestWindowUi.Open));
-            yield return AccessTools.Method(typeof(ChestWindowUi), nameof(ChestWindowUi.OpeningFinished)); // Take/discard buttons appear
-            yield return AccessTools.Method(typeof(EncounterUi), nameof(EncounterUi.Open));
-            yield return AccessTools.Method(typeof(MicrowaveUi), nameof(MicrowaveUi.Open));
+            MethodBase[] candidates =
+            [
+                AccessTools.Method(typeof(LevelupScreen), nameof(LevelupScreen.Open)),
+                AccessTools.Method(typeof(ChestWindowUi), nameof(ChestWindowUi.Open)),
+                AccessTools.Method(typeof(ChestWindowUi), nameof(ChestWindowUi.OpeningFinished)), // Take/discard buttons appear
+                AccessTools.Method(typeof(EncounterUi), nameof(EncounterUi.Open)),
+                AccessTools.Method(typeof(MicrowaveUi), nameof(MicrowaveUi.Open)),
+            ];
+
+            return candidates.Where(NativeCodeGuard.IsSafeToPatch);
         }
 
         public static void Postfix()
@@ -54,29 +61,37 @@ namespace MegabonkTogether.Patches
         }
     }
 
+    /// <summary>
+    /// The actions behind the reward window buttons. Not the buttons' OnClick: most are empty and their native code is shared
+    /// with unrelated methods (see NativeCodeGuard), patching them crashed the game on start.
+    /// </summary>
     [HarmonyPatch]
-    internal static class RewardWindowButtonClickPatches
+    internal static class RewardWindowChoicePatches
     {
         public static IEnumerable<MethodBase> TargetMethods()
         {
-            yield return AccessTools.Method(typeof(UpgradeButton), nameof(UpgradeButton.OnClick));
-            yield return AccessTools.Method(typeof(EncounterButton), nameof(EncounterButton.OnClick));
-            yield return AccessTools.Method(typeof(MicrowaveItemButton), nameof(MicrowaveItemButton.OnClick));
-            yield return AccessTools.Method(typeof(MyButtonOffersUtility), nameof(MyButtonOffersUtility.OnClick));
-            yield return AccessTools.Method(typeof(MyButtonNormal), nameof(MyButtonNormal.OnClick));
-            yield return AccessTools.Method(typeof(MyButton), nameof(MyButton.OnClick));
+            MethodBase[] candidates =
+            [
+                AccessTools.Method(typeof(UpgradeButton), nameof(UpgradeButton.SelectUpgrade)),
+                AccessTools.Method(typeof(LevelupScreen), nameof(LevelupScreen.ChooseOffer)),
+                AccessTools.Method(typeof(EncounterButton), nameof(EncounterButton.OnClick)),
+                AccessTools.Method(typeof(EncounterUi), nameof(EncounterUi.ChooseOffer)),
+                AccessTools.Method(typeof(MicrowaveItemButton), nameof(MicrowaveItemButton.SelectUpgrade)),
+                AccessTools.Method(typeof(MicrowaveUi), nameof(MicrowaveUi.ChooseOffer)),
+                AccessTools.Method(typeof(LevelupScreen), nameof(LevelupScreen.Skip)),
+                AccessTools.Method(typeof(LevelupScreen), nameof(LevelupScreen.Refresh)),
+                AccessTools.Method(typeof(LevelupScreen), nameof(LevelupScreen.StartBanish)),
+                AccessTools.Method(typeof(ChestWindowUi), nameof(ChestWindowUi.TakeButton)),
+                AccessTools.Method(typeof(ChestWindowUi), nameof(ChestWindowUi.DiscardButton)),
+                AccessTools.Method(typeof(ChestWindowUi), nameof(ChestWindowUi.BanishButton)),
+            ];
+
+            return candidates.Where(NativeCodeGuard.IsSafeToPatch);
         }
 
-        public static bool Prefix(MyButton __instance, MethodBase __originalMethod)
+        public static bool Prefix()
         {
             if (!RewardWindowInputLock.IsLocked())
-            {
-                return true;
-            }
-
-            // Generic buttons are used everywhere (e.g. chest take/leave, but also menus): only block those of reward windows
-            var isGenericButton = __originalMethod.DeclaringType == typeof(MyButton) || __originalMethod.DeclaringType == typeof(MyButtonNormal);
-            if (isGenericButton && __instance.GetComponentInParent<BaseEncounterWindow>() == null)
             {
                 return true;
             }
@@ -89,6 +104,11 @@ namespace MegabonkTogether.Patches
     [HarmonyPatch(typeof(EncounterUi))]
     internal static class EncounterUiKeyboardPatches
     {
+        public static bool Prepare(MethodBase original)
+        {
+            return original == null || NativeCodeGuard.IsSafeToPatch(original);
+        }
+
         /// <summary>
         /// Number keys pick an offer directly, without going through a button
         /// </summary>

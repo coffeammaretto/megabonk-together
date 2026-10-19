@@ -1,8 +1,10 @@
 ﻿using Assets.Scripts.Inventory__Items__Pickups.Stats;
 using Assets.Scripts.Menu.Shop;
 using HarmonyLib;
+using MegabonkTogether.Helpers;
 using MegabonkTogether.Services;
 using Microsoft.Extensions.DependencyInjection;
+using System.Reflection;
 
 namespace MegabonkTogether.Patches
 {
@@ -16,6 +18,11 @@ namespace MegabonkTogether.Patches
         private static readonly IPlayerManagerService playerManagerService = Plugin.Services.GetService<IPlayerManagerService>();
         private static readonly IPartyStatsService partyStatsService = Plugin.Services.GetService<IPartyStatsService>();
         private static bool shouldIgnoreNextPatch = false;
+
+        public static bool Prepare(MethodBase original)
+        {
+            return original == null || NativeCodeGuard.IsSafeToPatch(original);
+        }
 
         [HarmonyPrefix]
         [HarmonyPatch(nameof(PlayerStatsNew.GetStat))]
