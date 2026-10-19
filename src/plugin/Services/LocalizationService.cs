@@ -32,7 +32,9 @@ namespace MegabonkTogether.Services
             { ("MegabonkTogether", "FriendliesClientJoinSuccessDesc"), "{0} joined " },
             { ("MegabonkTogether", "VersionMismatch"), "Mod version mismatch" },
             { ("MegabonkTogether", "VersionMismatch_Description"), "{0} has {1}, you have {2}. Install the same build on every PC." },
-            { ("MegabonkTogether", "VersionMissing_Description"), "{0} has an older build of the mod. Install the same build on every PC." }
+            { ("MegabonkTogether", "VersionMissing_Description"), "{0} has an older build of the mod. Install the same build on every PC." },
+            { ("MegabonkTogether", "ItemGiven"), "Gift" },
+            { ("MegabonkTogether", "ItemGiven_Description"), "{0} gave you {1}" }
         };
 
         private readonly Queue<IEnumerable<string>> NextLocalizedDescription = new();

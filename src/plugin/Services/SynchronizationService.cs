@@ -272,6 +272,7 @@ namespace MegabonkTogether.Services
             EventManager.SubscribeCloseEncounterEvents(OnReceivedCloseEncounter);
             EventManager.SubscribeEncounterPausedEvents(OnReceivedEncounterPaused);
             EventManager.SubscribeModVersionInfoEvents(OnReceivedModVersionInfo);
+            EventManager.SubscribeGiveItemEvents(OnReceivedGiveItem);
 
             cancellationToken = cancellationTokenSource.Token;
             this.udpClientService = udpClientService;
@@ -620,6 +621,32 @@ namespace MegabonkTogether.Services
             }
 
             gameStartedAt ??= Time.realtimeSinceStartup;
+        }
+
+        /// <summary>
+        /// A teammate gave the local player a chest item
+        /// </summary>
+        private void OnReceivedGiveItem(GiveItem gift)
+        {
+            var localPlayer = playerManagerService.GetLocalPlayer();
+            var inventory = GameManager.Instance?.player?.inventory;
+            if (localPlayer == null || inventory == null || gift.ToId != localPlayer.ConnectionId)
+            {
+                return;
+            }
+
+            var item = (EItem)gift.Item;
+            inventory.itemInventory.AddItem(item); //Synced to the others as usual
+
+            var giverName = playerManagerService.GetPlayer(gift.FromId)?.Name ?? "A teammate";
+            var itemName = DataManager.Instance?.itemData != null && DataManager.Instance.itemData.TryGetValue(item, out var data) ? data.GetName() : item.ToString();
+            logger.LogInfo($"{giverName} gave {item}");
+            Plugin.StartNotification(
+                ("MegabonkTogether", "ItemGiven"),
+                ("MegabonkTogether", "ItemGiven_Description"),
+                [giverName, itemName],
+                item: item
+            );
         }
 
         private void OnReceivedModVersionInfo(ModVersionInfo info)

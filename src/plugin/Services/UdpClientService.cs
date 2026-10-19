@@ -742,6 +742,9 @@ namespace MegabonkTogether.Services
                     case PlayerDownedChanged playerDownedChanged:
                         EventManager.OnPlayerDownedChanged(playerDownedChanged);
                         break;
+                    case GiveItem giveItem:
+                        EventManager.OnGiveItem(giveItem);
+                        break;
                     default:
                         Plugin.Log.LogWarning($"Unknown message type received. message={message}");
                         break;
@@ -1012,6 +1015,10 @@ namespace MegabonkTogether.Services
                     case PlayerDownedChanged playerDownedChanged:
                         EventManager.OnPlayerDownedChanged(playerDownedChanged);
                         SendToAllClientsExcept(netPeerId, playerDownedChanged.PlayerId, playerDownedChanged);
+                        break;
+                    case GiveItem giveItem:
+                        EventManager.OnGiveItem(giveItem);
+                        SendToAllClientsExcept(netPeerId, giveItem.FromId, giveItem);
                         break;
                     case EncounterStateChanged encounterStateChanged: //Waiting players are released by SynchronizationService.UpdateEncounterSync
                         encounterService.SetRemoteState(encounterStateChanged.OwnerId, encounterStateChanged.State, encounterStateChanged.CloseSeq);
