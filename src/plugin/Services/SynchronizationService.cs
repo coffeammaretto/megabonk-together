@@ -130,6 +130,7 @@ namespace MegabonkTogether.Services
         public void RewardFinished();
         public void UpdateEncounterSync();
         public void RetryPendingInventoryReplays();
+        public void CheckPeerModVersions();
     }
     internal class SynchronizationService : ISynchronizationService
     {
@@ -166,6 +167,12 @@ namespace MegabonkTogether.Services
         private bool wasUnstuckKeyDown = false;
         private bool isStuckHintShown = false;
         private bool wasAnyoneChoosing = false;
+        private float? stuckSince = null;
+
+        private const float MOD_VERSION_TIMEOUT = 20f;
+        private readonly Dictionary<uint, string> peerModVersions = [];
+        private readonly HashSet<uint> warnedModVersions = [];
+        private float? gameStartedAt = null;
 
         private const float INVENTORY_REPLAY_TIMEOUT = 30f;
         private readonly List<(uint OwnerId, float DeferredAt, Func<bool> TryReplay)> pendingInventoryReplays = [];
@@ -258,6 +265,7 @@ namespace MegabonkTogether.Services
             EventManager.SubscribeAddXpEvents(OnReceivedAddXp);
             EventManager.SubscribeCloseEncounterEvents(OnReceivedCloseEncounter);
             EventManager.SubscribeEncounterPausedEvents(OnReceivedEncounterPaused);
+            EventManager.SubscribeModVersionInfoEvents(OnReceivedModVersionInfo);
 
             cancellationToken = cancellationTokenSource.Token;
             this.udpClientService = udpClientService;
@@ -308,6 +316,9 @@ namespace MegabonkTogether.Services
             encounterService.Reset();
             lastSentEncounterState = null;
             pendingInventoryReplays.Clear();
+            peerModVersions.Clear();
+            warnedModVersions.Clear();
+            gameStartedAt = null;
             playerManagerService.Reset();
             enemyManagerService.ResetReviverSpawnCounts();
 
@@ -580,6 +591,71 @@ namespace MegabonkTogether.Services
             gameBalanceService.Initialize();
 
             Plugin.Instance.PreventDeath();
+
+            SendModVersion();
+        }
+
+        private void SendModVersion()
+        {
+            IGameNetworkMessage message = new ModVersionInfo
+            {
+                OwnerId = playerManagerService.GetLocalPlayer().ConnectionId,
+                Version = ModVersionInfo.CurrentVersion
+            };
+
+            if (IsServerMode() ?? false)
+            {
+                udpClientService.SendToAllClients(message, LiteNetLib.DeliveryMethod.ReliableOrdered);
+            }
+            else
+            {
+                udpClientService.SendToHost(message, LiteNetLib.DeliveryMethod.ReliableOrdered);
+            }
+
+            gameStartedAt ??= Time.realtimeSinceStartup;
+        }
+
+        private void OnReceivedModVersionInfo(ModVersionInfo info)
+        {
+            peerModVersions[info.OwnerId] = info.Version;
+            if (info.Version == ModVersionInfo.CurrentVersion || !warnedModVersions.Add(info.OwnerId))
+            {
+                return;
+            }
+
+            var name = playerManagerService.GetPlayer(info.OwnerId)?.Name ?? info.OwnerId.ToString();
+            logger.LogWarning($"Player {name} has mod build {info.Version}, this one is {ModVersionInfo.CurrentVersion}");
+            Plugin.StartNotification(
+                ("MegabonkTogether", "VersionMismatch"),
+                ("MegabonkTogether", "VersionMismatch_Description"),
+                [name, info.Version, ModVersionInfo.CurrentVersion]
+            );
+        }
+
+        /// <summary>
+        /// An older build doesn't know the ModVersionInfo message: warn about players silent for a while after the game started
+        /// </summary>
+        public void CheckPeerModVersions()
+        {
+            if (!gameStartedAt.HasValue || Time.realtimeSinceStartup - gameStartedAt.Value < MOD_VERSION_TIMEOUT)
+            {
+                return;
+            }
+
+            foreach (var player in playerManagerService.GetAllPlayersExceptLocal())
+            {
+                if (peerModVersions.ContainsKey(player.ConnectionId) || !warnedModVersions.Add(player.ConnectionId))
+                {
+                    continue;
+                }
+
+                logger.LogWarning($"Player {player.Name} sent no mod build info: older build of the mod?");
+                Plugin.StartNotification(
+                    ("MegabonkTogether", "VersionMismatch"),
+                    ("MegabonkTogether", "VersionMissing_Description"),
+                    [player.Name]
+                );
+            }
         }
 
         private void SendSpawnedObject(uint netplayId, GameObject obj)
@@ -4593,11 +4669,22 @@ namespace MegabonkTogether.Services
             var isUnstuckKeyPressed = isUnstuckKeyDown && !wasUnstuckKeyDown;
             wasUnstuckKeyDown = isUnstuckKeyDown;
 
-            if (encounterService.IsWaiting)
+            // Waiting for the others, or paused with no reward window to pick from, whatever the bookkeeping says
+            var encounterWindows = UiManager.Instance.encounterWindows;
+            var isRewardWindowShown = IsRewardWindowShown(encounterWindows);
+            var isPossiblyStuck = encounterService.IsWaiting || (MyTime.paused && !isRewardWindowShown);
+            if (!isPossiblyStuck)
             {
+                stuckSince = null;
+                isStuckHintShown = false;
+            }
+            else
+            {
+                stuckSince ??= now;
+
                 if (isUnstuckKeyPressed)
                 {
-                    logger.LogInfo("Unstuck key pressed, releasing waiting players");
+                    logger.LogInfo($"Unstuck key pressed (waiting={encounterService.IsWaiting}, paused={MyTime.paused}, encounter={encounterWindows.encounterInProgress}), releasing waiting players");
 
                     if (isHost)
                     {
@@ -4606,18 +4693,16 @@ namespace MegabonkTogether.Services
                     else
                     {
                         SendEncounterState(localPlayer.ConnectionId, EncounterSyncState.Waiting, true, now);
-                        OnCloseEncounter(); //Don't depend on the host to get out
                     }
+
+                    ForceLocalRelease(encounterWindows, isRewardWindowShown); //Don't depend on the host to get out
+                    stuckSince = null;
                 }
-                else if (!isStuckHintShown && now - encounterService.WaitingSince >= ENCOUNTER_STUCK_HINT_DELAY)
+                else if (!isStuckHintShown && now - stuckSince.Value >= ENCOUNTER_STUCK_HINT_DELAY)
                 {
                     isStuckHintShown = true;
                     ScreenTextHelper.Show("Waiting for other player(s) choices...\nStuck? Press F8 to continue", new Vector2(0, -350));
                 }
-            }
-            else
-            {
-                isStuckHintShown = false;
             }
 
             if (isHost)
@@ -4627,6 +4712,7 @@ namespace MegabonkTogether.Services
                 var isAnyoneChoosing = encounterService.IsAnyoneChoosing(remotePlayerIds);
                 if (isAnyoneChoosing && !wasAnyoneChoosing) //Only when it starts, so the unstuck key can't get overridden
                 {
+                    logger.LogInfo("Someone is choosing a reward: pausing everyone");
                     IGameNetworkMessage pauseMessage = new EncounterPaused();
                     udpClientService.SendToAllClients(pauseMessage, LiteNetLib.DeliveryMethod.ReliableOrdered);
                     PauseForOtherPlayers();
@@ -4635,6 +4721,7 @@ namespace MegabonkTogether.Services
 
                 if (encounterService.TryClose(remotePlayerIds))
                 {
+                    logger.LogInfo($"Nobody is choosing anymore: releasing waiting players (close #{encounterService.CloseSeq})");
                     IGameNetworkMessage closeMessage = new CloseEncounter
                     {
                         Seq = encounterService.CloseSeq
@@ -4654,8 +4741,45 @@ namespace MegabonkTogether.Services
             }
         }
 
+        private static bool IsRewardWindowShown(Assets.Scripts.UI.InGame.Levelup.EncounterWindows encounterWindows)
+        {
+            var window = encounterWindows.activeEncounterWindow;
+            return encounterWindows.encounterInProgress && window != null && window.gameObject.activeInHierarchy;
+        }
+
+        /// <summary>
+        /// Unstuck key: resume the local game. A reward already picked (window hidden) gets closed, a visible one is kept.
+        /// </summary>
+        private void ForceLocalRelease(Assets.Scripts.UI.InGame.Levelup.EncounterWindows encounterWindows, bool isRewardWindowShown)
+        {
+            encounterService.StopWaiting();
+            ScreenTextHelper.Clear();
+
+            if (encounterWindows.encounterInProgress && !isRewardWindowShown)
+            {
+                encounterService.IsReleasing = true;
+                try
+                {
+                    encounterWindows.RewardFinished();
+                }
+                finally
+                {
+                    encounterService.IsReleasing = false;
+                }
+            }
+            else if (!encounterWindows.encounterInProgress)
+            {
+                MyTime.Unpause();
+            }
+        }
+
         private void SendEncounterState(uint localPlayerId, EncounterSyncState state, bool forceClose, float now)
         {
+            if (state != lastSentEncounterState || forceClose)
+            {
+                logger.LogInfo($"Encounter state: {state}{(forceClose ? " (force close)" : string.Empty)}, last close #{encounterService.CloseSeq}");
+            }
+
             IGameNetworkMessage message = new EncounterStateChanged
             {
                 OwnerId = localPlayerId,
@@ -4671,6 +4795,7 @@ namespace MegabonkTogether.Services
 
         private void OnReceivedEncounterPaused(EncounterPaused paused)
         {
+            logger.LogInfo($"Received pause (local state={encounterService.GetLocalState()})");
             PauseForOtherPlayers();
         }
 
@@ -4696,6 +4821,7 @@ namespace MegabonkTogether.Services
 
         private void OnReceivedCloseEncounter(CloseEncounter close)
         {
+            logger.LogInfo($"Received close #{close.Seq} (waiting={encounterService.IsWaiting})");
             encounterService.CloseSeq = close.Seq;
             OnCloseEncounter();
         }

@@ -68,6 +68,7 @@ namespace MegabonkTogether.Services
         private static event Action<CloseEncounter> CloseEncounterEvents;
         private static event Action<EncounterPaused> EncounterPausedEvents;
         private static event Action<PlayerStatsChanged> PlayerStatsChangedEvents;
+        private static event Action<ModVersionInfo> ModVersionInfoEvents;
 
         public static void OnSpawnedObject(SpawnedObject spawnedObject)
         {
@@ -824,6 +825,19 @@ namespace MegabonkTogether.Services
             MainThreadDispatcher.Enqueue(() =>
             {
                 PlayerStatsChangedEvents?.Invoke(playerStatsChanged);
+            });
+        }
+
+        public static void SubscribeModVersionInfoEvents(Action<ModVersionInfo> action)
+        {
+            ModVersionInfoEvents += action;
+        }
+
+        public static void OnModVersionInfo(ModVersionInfo modVersionInfo)
+        {
+            MainThreadDispatcher.Enqueue(() =>
+            {
+                ModVersionInfoEvents?.Invoke(modVersionInfo);
             });
         }
     }

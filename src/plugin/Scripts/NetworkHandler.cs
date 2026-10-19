@@ -88,6 +88,7 @@ namespace MegabonkTogether.Scripts
 
                 synchronizationService.UpdateEncounterSync();
                 synchronizationService.RetryPendingInventoryReplays();
+                synchronizationService.CheckPeerModVersions();
                 partyStatsService?.Tick();
 
                 lobbyUpdateAccumulator += Time.deltaTime;

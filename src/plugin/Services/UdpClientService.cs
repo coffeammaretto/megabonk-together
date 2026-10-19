@@ -91,6 +91,7 @@ namespace MegabonkTogether.Services
         private uint? selfConnectionId;
         private readonly ConcurrentDictionary<int, PeerIntroduction> gamePeersIntroduced = [];
         private readonly ConcurrentDictionary<uint, PeerIntroduction> gamePeersIntroducedByRelay = [];
+        private int undecodablePackets = 0;
         private bool? isHost { get; set; } = null;
         private int expectedPeerCount = 0;
         private bool hasStarted = false;
@@ -260,7 +261,12 @@ namespace MegabonkTogether.Services
                     }
                     catch (MemoryPackSerializationException)
                     {
-                        logger.LogDebug($"Corrupted packet from {peer.Address}, discarding");
+                        // Usually a player with another build of the mod (different network messages): make it visible
+                        undecodablePackets++;
+                        if (undecodablePackets <= 3 || undecodablePackets % 200 == 0)
+                        {
+                            logger.LogWarning($"Undecodable packet from {peer.Address} ({undecodablePackets} so far): does every player have the same mod build?");
+                        }
                         return;
                     }
 
@@ -727,6 +733,9 @@ namespace MegabonkTogether.Services
                     case PlayerStatsChanged playerStatsChanged:
                         EventManager.OnPlayerStatsChanged(playerStatsChanged);
                         break;
+                    case ModVersionInfo modVersionInfo:
+                        EventManager.OnModVersionInfo(modVersionInfo);
+                        break;
                     default:
                         Plugin.Log.LogWarning($"Unknown message type received. message={message}");
                         break;
@@ -989,6 +998,10 @@ namespace MegabonkTogether.Services
                     case PlayerStatsChanged playerStatsChanged:
                         EventManager.OnPlayerStatsChanged(playerStatsChanged);
                         SendToAllClientsExcept(netPeerId, playerStatsChanged.OwnerId, playerStatsChanged);
+                        break;
+                    case ModVersionInfo modVersionInfo:
+                        EventManager.OnModVersionInfo(modVersionInfo);
+                        SendToAllClientsExcept(netPeerId, modVersionInfo.OwnerId, modVersionInfo);
                         break;
                     case EncounterStateChanged encounterStateChanged: //Waiting players are released by SynchronizationService.UpdateEncounterSync
                         encounterService.SetRemoteState(encounterStateChanged.OwnerId, encounterStateChanged.State, encounterStateChanged.CloseSeq);

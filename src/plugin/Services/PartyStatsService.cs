@@ -54,6 +54,7 @@ namespace MegabonkTogether.Services
         private readonly Dictionary<EStat, float> partyTotals = [];
         private readonly Dictionary<EStat, float> lastWrittenTotals = [];
         private readonly Dictionary<EStat, int> statReadFailures = [];
+        private readonly Dictionary<EStat, float> lastLoggedTotals = [];
 
         private IntPtr localStatsPointer = IntPtr.Zero;
         private int readingOwnStatDepth = 0;
@@ -146,6 +147,12 @@ namespace MegabonkTogether.Services
             {
                 playerStats.stats[stat] = total;
                 lastWrittenTotals[stat] = total;
+            }
+
+            if (!lastLoggedTotals.TryGetValue(stat, out var lastLogged) || Mathf.Abs(lastLogged - total) > EPSILON)
+            {
+                lastLoggedTotals[stat] = total;
+                Plugin.Log.LogInfo($"Party {stat}: own {ownValue} + others {remoteSums.GetValueOrDefault(stat)} = {total} (GetStat now {playerStats.GetStat(stat)})");
             }
         }
 
@@ -312,6 +319,11 @@ namespace MegabonkTogether.Services
                 return; //Not (or no longer) in the party
             }
 
+            if (!remoteStats.ContainsKey(message.OwnerId))
+            {
+                Plugin.Log.LogInfo($"Party stats: receiving stats of player {message.OwnerId} ({message.PassiveModifiers?.Count ?? 0} passive bonuses)");
+            }
+
             remoteStats[message.OwnerId] = message.Stats;
             ApplyRemotePassives(localInventory, message.OwnerId, message.PassiveModifiers ?? []);
             RefreshRemoteSums(localPlayer.ConnectionId, localInventory);
@@ -414,6 +426,7 @@ namespace MegabonkTogether.Services
             partyTotals.Clear();
             lastWrittenTotals.Clear();
             statReadFailures.Clear();
+            lastLoggedTotals.Clear();
             localStatsPointer = IntPtr.Zero;
             lastSentStats = null;
             lastSentPassives = null;
