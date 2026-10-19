@@ -2327,6 +2327,8 @@ namespace MegabonkTogether.Services
                 player.RefreshConstantAttack(upgradeModifiers);
                 Plugin.Instance.RestorePlayerInventoryActions();
                 Plugin.CAN_SEND_MESSAGES = true;
+
+                NotifyTeammatePick(added.OwnerId, ((EWeapon)added.Weapon).ToString(), null);
             }
 
             return true;
@@ -2404,6 +2406,8 @@ namespace MegabonkTogether.Services
                 TomeInventory.A_TomeUpgrade = callbacks;
 
                 Plugin.CAN_SEND_MESSAGES = true;
+
+                NotifyTeammatePick(added.OwnerId, $"{(ETome)added.Tome} tome", null);
             }
 
             return true;
@@ -4351,6 +4355,9 @@ namespace MegabonkTogether.Services
             Plugin.CAN_SEND_MESSAGES = false;
             netPlayer.AddItem(item);
             Plugin.CAN_SEND_MESSAGES = true;
+
+            var itemName = DataManager.Instance?.itemData != null && DataManager.Instance.itemData.TryGetValue(item, out var itemData) ? itemData.GetName() : item.ToString();
+            NotifyTeammatePick(added.OwnerId, itemName, item);
             return true;
         }
 
@@ -4432,6 +4439,27 @@ namespace MegabonkTogether.Services
 
             Plugin.CAN_SEND_MESSAGES = true;
             return true;
+        }
+
+        /// <summary>
+        /// "X took Y" when a teammate gets an item, weapon or tome, to coordinate builds
+        /// </summary>
+        private void NotifyTeammatePick(uint ownerId, string what, EItem? icon)
+        {
+            if (!Configuration.ModConfig.ShowTeammatePicks.Value)
+            {
+                return;
+            }
+
+            var name = playerManagerService.GetPlayer(ownerId)?.Name ?? "Teammate";
+            if (icon.HasValue)
+            {
+                Plugin.StartNotification(("MegabonkTogether", "TeammatePick"), ("MegabonkTogether", "TeammatePick_Description"), [name, what], item: icon.Value);
+            }
+            else
+            {
+                Plugin.StartNotification(("MegabonkTogether", "TeammatePick"), ("MegabonkTogether", "TeammatePick_Description"), [name, what]);
+            }
         }
 
         /// <summary>

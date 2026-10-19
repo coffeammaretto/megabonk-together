@@ -19,6 +19,7 @@ namespace MegabonkTogether.Configuration
         public static ConfigEntry<bool> EnabledSharedExperience { get; private set; }
         public static ConfigEntry<float> RewardWindowInputDelay { get; private set; }
         public static ConfigEntry<UnityEngine.KeyCode> PingKey { get; private set; }
+        public static ConfigEntry<bool> ShowTeammatePicks { get; private set; }
 
         // Party rules: the host's values apply to everyone
         public static ConfigEntry<bool> ScaleFreeChestsWithPlayers { get; private set; }
@@ -103,6 +104,8 @@ namespace MegabonkTogether.Configuration
 
             PingKey = config.Bind("Controls", "PingKey", UnityEngine.KeyCode.Mouse2,
                 "Key to mark the spot you look at for the whole team (ping).");
+            ShowTeammatePicks = config.Bind("Controls", "ShowTeammatePicks", true,
+                "Show a notification when a teammate gets an item, weapon or tome, to coordinate builds.");
 
             const string party = "Party (host settings, apply to everyone)";
             ScaleFreeChestsWithPlayers = config.Bind(party, "ScaleFreeChestsWithPlayers", false,
