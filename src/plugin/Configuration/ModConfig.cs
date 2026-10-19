@@ -16,6 +16,7 @@ namespace MegabonkTogether.Configuration
         public static ConfigEntry<string> PreviousVersion { get; private set; }
         public static ConfigEntry<bool> AllowSavesDuringNetplay { get; private set; }
         public static ConfigEntry<bool> EnabledSharedExperience { get; private set; }
+        public static ConfigEntry<float> RewardWindowInputDelay { get; private set; }
 
         public static void Initialize(ConfigFile config)
         {
@@ -68,6 +69,12 @@ namespace MegabonkTogether.Configuration
                 "EnabledSharedExperience",
                 false,
                 "Enable Host experience (Same XP and pause enabled). Disable for no pause and separate XP."
+            );
+            RewardWindowInputDelay = config.Bind(
+                "Gameplay",
+                "RewardWindowInputDelay",
+                1f,
+                "Seconds during which clicks and presses are ignored after a level up, chest or other reward window appears in netplay, to prevent accidental picks. 0 to disable."
             );
         }
 
