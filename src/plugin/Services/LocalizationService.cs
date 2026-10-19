@@ -36,7 +36,9 @@ namespace MegabonkTogether.Services
             { ("MegabonkTogether", "ItemGiven"), "Gift" },
             { ("MegabonkTogether", "ItemGiven_Description"), "{0} gave you {1}" },
             { ("MegabonkTogether", "RunModifiers"), "Run modifiers" },
-            { ("MegabonkTogether", "RunModifiers_Description"), "{0}" }
+            { ("MegabonkTogether", "RunModifiers_Description"), "{0}" },
+            { ("MegabonkTogether", "Challenge"), "Coop challenge" },
+            { ("MegabonkTogether", "Challenge_Description"), "{0}" }
         };
 
         private readonly Queue<IEnumerable<string>> NextLocalizedDescription = new();

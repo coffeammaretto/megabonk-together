@@ -40,6 +40,7 @@ namespace MegabonkTogether.Configuration
         public static ConfigEntry<float> TeamMeterGrowth { get; private set; }
         public static ConfigEntry<float> TeamBuffSeconds { get; private set; }
         public static ConfigEntry<RunModifier> RunModifiers { get; private set; }
+        public static ConfigEntry<bool> ChallengesEnabled { get; private set; }
 
         public static void Initialize(ConfigFile config)
         {
@@ -142,6 +143,8 @@ namespace MegabonkTogether.Configuration
                 "Team buff duration (+25% damage, +15% move speed).");
             RunModifiers = config.Bind(party, "RunModifiers", RunModifier.None,
                 "Run modifiers, comma separated: GlassCannon (damage x2, max HP x0.5), Horde (enemies x1.5, XP +25%), ThickSkinned (enemy HP x2, luck +0.25), Frenzy (enemies 10% faster every 5 minutes), Lucky (luck +0.5, difficulty +0.3), Poverty (gold -50%, XP +25%). None for a normal run.");
+            ChallengesEnabled = config.Bind(party, "ChallengesEnabled", true,
+                "Coop challenges rewarded with chests: no death on a stage (bonus chest on the next one), stage boss killed with everyone alive (chest where it died).");
         }
 
         public static PartySettings ToPartySettings()
@@ -167,6 +170,7 @@ namespace MegabonkTogether.Configuration
                 TeamMeterGrowth = TeamMeterGrowth.Value,
                 TeamBuffSeconds = TeamBuffSeconds.Value,
                 RunModifiers = RunModifiers.Value,
+                ChallengesEnabled = ChallengesEnabled.Value,
             };
         }
 

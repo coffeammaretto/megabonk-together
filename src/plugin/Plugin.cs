@@ -162,6 +162,7 @@ namespace MegabonkTogether
                 services.AddSingleton<IDownedService, DownedService>();
                 services.AddSingleton<IPingService, PingService>();
                 services.AddSingleton<ITeamMeterService, TeamMeterService>();
+                services.AddSingleton<IChallengeService, ChallengeService>();
                 services.AddSingleton<ITrackerService, TrackerService>();
             });
 

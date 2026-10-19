@@ -44,6 +44,8 @@ namespace MegabonkTogether.Common.Messages.GameNetworkMessages
 
         // Run modifiers picked by the host
         public RunModifier RunModifiers { get; set; } = RunModifier.None;
+
+        public bool ChallengesEnabled { get; set; } = true;
     }
 
     [System.Flags]

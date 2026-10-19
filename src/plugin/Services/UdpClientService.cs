@@ -751,6 +751,9 @@ namespace MegabonkTogether.Services
                     case TeamMeterUpdate teamMeterUpdate:
                         EventManager.OnTeamMeterUpdate(teamMeterUpdate);
                         break;
+                    case ChallengeNotice challengeNotice:
+                        EventManager.OnChallengeNotice(challengeNotice);
+                        break;
                     default:
                         Plugin.Log.LogWarning($"Unknown message type received. message={message}");
                         break;

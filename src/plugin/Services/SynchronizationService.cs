@@ -601,6 +601,12 @@ namespace MegabonkTogether.Services
 
             SendModVersion();
             ((IPartySettingsService)Plugin.Services.GetService(typeof(IPartySettingsService))).SendToClients();
+            GetChallengeService()?.OnStageStarted();
+        }
+
+        private static IChallengeService GetChallengeService()
+        {
+            return (IChallengeService)Plugin.Services.GetService(typeof(IChallengeService));
         }
 
         private void SendModVersion()
@@ -803,6 +809,10 @@ namespace MegabonkTogether.Services
                     }
                     break;
                 case GameEvent.PortalOpened:
+                    if (IsServerMode() ?? false)
+                    {
+                        GetChallengeService()?.OnStageEnded();
+                    }
                     currentState = State.LoadingNextLevel;
                     playerManagerService.ResetForNextLevel();
                     PrepareForNextLevel();
@@ -1739,6 +1749,10 @@ namespace MegabonkTogether.Services
             {
                 udpClientService.SendToAllClients(message, LiteNetLib.DeliveryMethod.ReliableOrdered);
                 ((ITeamMeterService)Plugin.Services.GetService(typeof(ITeamMeterService)))?.OnEnemyKilled(diedByOwnerId ?? playerManagerService.GetLocalPlayer()?.ConnectionId);
+                if (enemy.IsStageBoss() && !enemy.IsFinalBoss())
+                {
+                    GetChallengeService()?.OnStageBossKilled(enemy.transform.position);
+                }
             }
             else
             {
@@ -3814,6 +3828,7 @@ namespace MegabonkTogether.Services
             else
             {
                 udpClientService.SendToAllClients(diedMessage, LiteNetLib.DeliveryMethod.ReliableOrdered);
+                GetChallengeService()?.OnPlayerDied();
 
                 var allPlayersAliveIdWithout = playerManagerService.GetAllPlayersAlive().Where(p => p.ConnectionId != playerId).Select(p => p.ConnectionId).ToList();
                 var updated = enemyManagerService.ReTargetEnemies(playerId, allPlayersAliveIdWithout);
@@ -3859,7 +3874,7 @@ namespace MegabonkTogether.Services
                 };
 
                 udpClientService.SendToAllClients(diedMessage, LiteNetLib.DeliveryMethod.ReliableOrdered);
-
+                GetChallengeService()?.OnPlayerDied();
 
                 var allPlayersAliveIdWithout = playerManagerService.GetAllPlayersAlive().Where(p => p.ConnectionId != died.PlayerId).Select(p => p.ConnectionId).ToList();
                 var updated = enemyManagerService.ReTargetEnemies(died.PlayerId, allPlayersAliveIdWithout);
