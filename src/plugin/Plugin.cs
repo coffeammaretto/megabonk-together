@@ -163,6 +163,7 @@ namespace MegabonkTogether
                 services.AddSingleton<IPingService, PingService>();
                 services.AddSingleton<ITeamMeterService, TeamMeterService>();
                 services.AddSingleton<IChallengeService, ChallengeService>();
+                services.AddSingleton<IRunStatsService, RunStatsService>();
                 services.AddSingleton<ITrackerService, TrackerService>();
             });
 

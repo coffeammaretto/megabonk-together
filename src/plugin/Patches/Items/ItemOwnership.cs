@@ -221,6 +221,34 @@ namespace MegabonkTogether.Patches.Items
         }
     }
 
+    /// <summary>
+    /// Count the gold the local player earns for the end of run team table
+    /// </summary>
+    [HarmonyPatch]
+    internal static class LocalGoldEarnedPatches
+    {
+        private static readonly IRunStatsService runStatsService = Plugin.Services.GetService<IRunStatsService>();
+
+        public static IEnumerable<MethodBase> TargetMethods()
+        {
+            return ItemOwnership.Safe([AccessTools.Method(typeof(PlayerInventory), nameof(PlayerInventory.ChangeGold))]);
+        }
+
+        public static void Postfix(PlayerInventory __instance, int amount)
+        {
+            if (amount <= 0 || !ItemOwnership.IsNetplay)
+            {
+                return;
+            }
+
+            var localInventory = GameManager.Instance?.player?.inventory;
+            if (localInventory != null && __instance.Pointer == localInventory.Pointer)
+            {
+                runStatsService.OnLocalGoldEarned(amount);
+            }
+        }
+    }
+
     [HarmonyPatch]
     internal static class RemotePlayerContextGoldGuardPatches
     {

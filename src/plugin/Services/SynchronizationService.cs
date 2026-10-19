@@ -609,6 +609,11 @@ namespace MegabonkTogether.Services
             return (IChallengeService)Plugin.Services.GetService(typeof(IChallengeService));
         }
 
+        private static IRunStatsService GetRunStatsService()
+        {
+            return (IRunStatsService)Plugin.Services.GetService(typeof(IRunStatsService));
+        }
+
         private void SendModVersion()
         {
             IGameNetworkMessage message = new ModVersionInfo
@@ -831,6 +836,7 @@ namespace MegabonkTogether.Services
                 case GameEvent.GameOver:
                     currentState = State.GameOver;
                     Plugin.Instance.RestoreDeath(true);
+                    GetRunStatsService()?.PublishTeamStats();
                     break;
                 default:
                     logger.LogWarning($"Unhandled client event: {gameEvent}");
@@ -1662,6 +1668,7 @@ namespace MegabonkTogether.Services
             var isHost = IsServerMode() ?? false;
             if (isHost)
             {
+                GetRunStatsService()?.OnDamage(((EnemyDamaged)message).AttackerId, damageContainer.damage);
                 udpClientService.SendToAllClients(message, LiteNetLib.DeliveryMethod.Unreliable); //TODO: Can be unreliable i think ?
             }
             else
@@ -1748,7 +1755,12 @@ namespace MegabonkTogether.Services
             if (isHost)
             {
                 udpClientService.SendToAllClients(message, LiteNetLib.DeliveryMethod.ReliableOrdered);
-                ((ITeamMeterService)Plugin.Services.GetService(typeof(ITeamMeterService)))?.OnEnemyKilled(diedByOwnerId ?? playerManagerService.GetLocalPlayer()?.ConnectionId);
+                var killerId = diedByOwnerId ?? playerManagerService.GetLocalPlayer()?.ConnectionId;
+                ((ITeamMeterService)Plugin.Services.GetService(typeof(ITeamMeterService)))?.OnEnemyKilled(killerId);
+                if (killerId.HasValue)
+                {
+                    GetRunStatsService()?.OnKill(killerId.Value);
+                }
                 if (enemy.IsStageBoss() && !enemy.IsFinalBoss())
                 {
                     GetChallengeService()?.OnStageBossKilled(enemy.transform.position);

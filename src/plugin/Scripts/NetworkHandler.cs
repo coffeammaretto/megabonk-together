@@ -49,6 +49,7 @@ namespace MegabonkTogether.Scripts
         private IPingService pingService;
         private ITeamMeterService teamMeterService;
         private IChallengeService challengeService;
+        private IRunStatsService runStatsService;
 
         public bool? IsConnectedToMatchMaker => isConnectedToMatchMaker;
         public string MatchMakerFailureMessage => matchMakerFailureMessage;
@@ -101,6 +102,7 @@ namespace MegabonkTogether.Scripts
                 pingService?.Tick();
                 teamMeterService?.Tick();
                 challengeService?.Tick();
+                runStatsService?.Tick();
 
                 lobbyUpdateAccumulator += Time.deltaTime;
 
@@ -231,6 +233,7 @@ namespace MegabonkTogether.Scripts
             pingService?.Reset();
             teamMeterService?.Reset();
             challengeService?.Reset();
+            runStatsService?.Reset();
 
             if (websocketClientService != null)
             {
@@ -279,6 +282,7 @@ namespace MegabonkTogether.Scripts
                 pingService = Plugin.Services.GetRequiredService<IPingService>();
                 teamMeterService = Plugin.Services.GetRequiredService<ITeamMeterService>();
                 challengeService = Plugin.Services.GetRequiredService<IChallengeService>();
+                runStatsService = Plugin.Services.GetRequiredService<IRunStatsService>();
                 if (Plugin.Instance.Mode.Mode == Common.Models.NetworkModeType.Random)
                 {
                     isHost = synchronizationService.IsServerMode() ?? false;

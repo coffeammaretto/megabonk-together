@@ -75,6 +75,8 @@ namespace MegabonkTogether.Services
         private static event Action<PingPlaced> PingPlacedEvents;
         private static event Action<TeamMeterUpdate> TeamMeterUpdateEvents;
         private static event Action<ChallengeNotice> ChallengeNoticeEvents;
+        private static event Action<RunStatsReport> RunStatsReportEvents;
+        private static event Action<TeamStats> TeamStatsEvents;
 
         public static void OnSpawnedObject(SpawnedObject spawnedObject)
         {
@@ -922,6 +924,32 @@ namespace MegabonkTogether.Services
             MainThreadDispatcher.Enqueue(() =>
             {
                 ChallengeNoticeEvents?.Invoke(challengeNotice);
+            });
+        }
+
+        public static void SubscribeRunStatsReportEvents(Action<RunStatsReport> action)
+        {
+            RunStatsReportEvents += action;
+        }
+
+        public static void OnRunStatsReport(RunStatsReport runStatsReport)
+        {
+            MainThreadDispatcher.Enqueue(() =>
+            {
+                RunStatsReportEvents?.Invoke(runStatsReport);
+            });
+        }
+
+        public static void SubscribeTeamStatsEvents(Action<TeamStats> action)
+        {
+            TeamStatsEvents += action;
+        }
+
+        public static void OnTeamStats(TeamStats teamStats)
+        {
+            MainThreadDispatcher.Enqueue(() =>
+            {
+                TeamStatsEvents?.Invoke(teamStats);
             });
         }
     }
