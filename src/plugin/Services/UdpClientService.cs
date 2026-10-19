@@ -724,9 +724,6 @@ namespace MegabonkTogether.Services
                     case EncounterPaused encounterPaused:
                         EventManager.OnEncounterPaused(encounterPaused);
                         break;
-                    case GoldChanged goldChanged:
-                        EventManager.OnGoldChanged(goldChanged);
-                        break;
                     default:
                         Plugin.Log.LogWarning($"Unknown message type received. message={message}");
                         break;
@@ -903,9 +900,8 @@ namespace MegabonkTogether.Services
                         EventManager.OnEnemyExploder(enemyExploder);
                         SendToAllClientsExcept(netPeerId, enemyExploder.SenderId, enemyExploder);
                         break;
-                    case EnemyDamaged enemyDamaged:
+                    case EnemyDamaged enemyDamaged: //Applying it re-broadcasts it to every client (Enemy.Damage postfix), no relay needed
                         EventManager.OnEnemyDamaged(enemyDamaged);
-                        SendToAllClientsExcept(netPeerId, enemyDamaged.AttackerId, enemyDamaged);
                         break;
                     //case SpawnedEnemySpecialAttack spawnedEnemySpecialAttack:
                     //    EventManager.OnSpawnedEnemySpecialAttack(spawnedEnemySpecialAttack);
@@ -995,10 +991,6 @@ namespace MegabonkTogether.Services
                             encounterService.RequestForceClose();
                         }
 
-                        break;
-                    case GoldChanged goldChanged:
-                        EventManager.OnGoldChanged(goldChanged);
-                        SendToAllClientsExcept(netPeerId, goldChanged.OwnerId, goldChanged);
                         break;
                     default:
                         Plugin.Log.LogWarning($"Unknown message type received {message}");

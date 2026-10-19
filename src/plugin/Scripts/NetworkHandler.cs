@@ -86,6 +86,7 @@ namespace MegabonkTogether.Scripts
                 if (GameManager.Instance == null || GameManager.Instance.player == null || GameManager.Instance.player.inventory == null) return;
 
                 synchronizationService.UpdateEncounterSync();
+                synchronizationService.RetryPendingInventoryReplays();
 
                 lobbyUpdateAccumulator += Time.deltaTime;
 

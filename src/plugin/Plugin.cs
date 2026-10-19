@@ -75,7 +75,7 @@ namespace MegabonkTogether
         public static bool CAN_ENEMY_USE_SPECIAL_ATTACK = false;
         public bool CAN_SPAWN_TORNADOES = false;
         public bool CAN_START_STOP_STORMS = false;
-        public bool CAN_DAMAGE_ENEMIES = false;
+        public IntPtr DAMAGE_BEING_REPLAYED = IntPtr.Zero; //Client: DamageContainer received from the host, the only one applied locally
         public bool IS_HOST_READY = false;
         public bool IS_MANUAL_INVINCIBLE = false;
         public bool IS_NETPLAYER_ADDING_TOME = false;

@@ -98,17 +98,32 @@ namespace MegabonkTogether.Patches.Enemies
         /// </summary>
         [HarmonyPrefix]
         [HarmonyPatch(nameof(Enemy.EnemyDied), typeof(DamageContainer))]
-        public static void EnemyDied_Prefix(Enemy __instance)
+        public static void EnemyDied_Prefix(Enemy __instance, DamageContainer dc)
         {
             if (!synchronizationService.HasNetplaySessionStarted())
             {
                 return;
             }
 
-            var currentTracker = trackerService.GetCurrentPlayerId();
-            if (currentTracker.HasValue && currentTracker.Value != playerManagerService.GetLocalPlayer().ConnectionId) { return; }
+            var killerId = GetKillerId(dc);
+            if (killerId.HasValue && killerId.Value != playerManagerService.GetLocalPlayer().ConnectionId) { return; }
 
             trackerService.RegisterTrack();
+        }
+
+        /// <summary>
+        /// Player credited for a kill (money flying, on kill item procs): the one whose damage is being applied, else the
+        /// owner of the weapon, since the host also simulates the clients' weapons
+        /// </summary>
+        private static uint? GetKillerId(DamageContainer dc)
+        {
+            var currentTracker = trackerService.GetCurrentPlayerId();
+            if (currentTracker.HasValue || dc == null)
+            {
+                return currentTracker;
+            }
+
+            return DynamicData.For(dc).Get<uint?>("ownerId");
         }
 
         /// <summary>
@@ -129,7 +144,7 @@ namespace MegabonkTogether.Patches.Enemies
                 return;
             }
 
-            synchronizationService.OnEnemyDied(__instance, dc, trackerService.GetCurrentPlayerId());
+            synchronizationService.OnEnemyDied(__instance, dc, GetKillerId(dc));
         }
 
         /// <summary>
@@ -188,12 +203,13 @@ namespace MegabonkTogether.Patches.Enemies
                 return true;
             }
 
-            if (!Plugin.Instance.CAN_DAMAGE_ENEMIES)
-            {
-                return false;
-            }
+            // Only the host's damage being replayed. Anything it triggers (item procs) is blocked here and forwarded by the postfix
+            return IsReplayedDamage(damageContainer);
+        }
 
-            return true;
+        private static bool IsReplayedDamage(DamageContainer damageContainer)
+        {
+            return Plugin.Instance.DAMAGE_BEING_REPLAYED != IntPtr.Zero && damageContainer.Pointer == Plugin.Instance.DAMAGE_BEING_REPLAYED;
         }
 
         /// <summary>
@@ -210,7 +226,15 @@ namespace MegabonkTogether.Patches.Enemies
             }
 
             var isServer = synchronizationService.IsServerMode() ?? false;
-            if (isServer || AllowedDamageSource.Contains(damageContainer.damageSource))
+            if (isServer)
+            {
+                synchronizationService.OnEnemyDamaged(__instance, damageContainer);
+                return;
+            }
+
+            // Client: forward its own item damage, never the host's damage being replayed: sending that back made the host
+            // apply it again and echo it again, until the enemy died.
+            if (!IsReplayedDamage(damageContainer) && AllowedDamageSource.Contains(damageContainer.damageSource))
             {
                 synchronizationService.OnEnemyDamaged(__instance, damageContainer);
             }

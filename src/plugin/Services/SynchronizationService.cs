@@ -129,7 +129,7 @@ namespace MegabonkTogether.Services
         public void PlayerXpAddXp(int xp, int amount, float leftOverXp);
         public void RewardFinished();
         public void UpdateEncounterSync();
-        public void OnChangeGold(int amount);
+        public void RetryPendingInventoryReplays();
     }
     internal class SynchronizationService : ISynchronizationService
     {
@@ -166,6 +166,9 @@ namespace MegabonkTogether.Services
         private bool wasUnstuckKeyDown = false;
         private bool isStuckHintShown = false;
         private bool wasAnyoneChoosing = false;
+
+        private const float INVENTORY_REPLAY_TIMEOUT = 30f;
+        private readonly List<(uint OwnerId, float DeferredAt, Func<bool> TryReplay)> pendingInventoryReplays = [];
 
         private CancellationTokenSource cancellationTokenSource = new();
         private CancellationToken cancellationToken = default;
@@ -255,7 +258,6 @@ namespace MegabonkTogether.Services
             EventManager.SubscribeAddXpEvents(OnReceivedAddXp);
             EventManager.SubscribeCloseEncounterEvents(OnReceivedCloseEncounter);
             EventManager.SubscribeEncounterPausedEvents(OnReceivedEncounterPaused);
-            EventManager.SubscribeGoldChangedEvents(OnReceivedChangeGold);
 
             cancellationToken = cancellationTokenSource.Token;
             this.udpClientService = udpClientService;
@@ -305,6 +307,7 @@ namespace MegabonkTogether.Services
             PrepareForNextLevel();
             encounterService.Reset();
             lastSentEncounterState = null;
+            pendingInventoryReplays.Clear();
             playerManagerService.Reset();
             enemyManagerService.ResetReviverSpawnCounts();
 
@@ -1531,7 +1534,7 @@ namespace MegabonkTogether.Services
                 DamageElement = (int)damageContainer.element,
                 DamageFlags = (int)damageContainer.flags,
                 DamageKnockback = damageContainer.knockback,
-                AttackerId = playerManagerService.GetLocalPlayer().ConnectionId
+                AttackerId = GetDamageAttackerId(damageContainer)
             };
 
             var isHost = IsServerMode() ?? false;
@@ -1543,6 +1546,27 @@ namespace MegabonkTogether.Services
             {
                 udpClientService.SendToHost(message, LiteNetLib.DeliveryMethod.ReliableOrdered);
             }
+        }
+
+        /// <summary>
+        /// Who dealt the damage: the client whose hit is being applied, the owner of the weapon (the host also simulates the
+        /// clients' weapons) or the local player. Receivers use it for stats and kill credit.
+        /// </summary>
+        private uint GetDamageAttackerId(DamageContainer damageContainer)
+        {
+            var currentTracker = trackerService.GetCurrentPlayerId();
+            if (currentTracker.HasValue)
+            {
+                return currentTracker.Value;
+            }
+
+            var weaponOwnerId = DynamicData.For(damageContainer).Get<uint?>("ownerId");
+            if (weaponOwnerId.HasValue)
+            {
+                return weaponOwnerId.Value;
+            }
+
+            return playerManagerService.GetLocalPlayer().ConnectionId;
         }
 
         private void OnReceivedEnemyDamaged(EnemyDamaged damaged)
@@ -1565,7 +1589,7 @@ namespace MegabonkTogether.Services
                 damageSource = damaged.DamageSource
             };
 
-            Plugin.Instance.CAN_DAMAGE_ENEMIES = true;
+            Plugin.Instance.DAMAGE_BEING_REPLAYED = damageContainer.Pointer;
             playerManagerService.AddGetNetplayerPositionRequest(damaged.AttackerId);
             trackerService.SetCurrentPlayerId(damaged.AttackerId);
 
@@ -1573,7 +1597,7 @@ namespace MegabonkTogether.Services
 
             trackerService.UnsetCurrentPlayerId();
             playerManagerService.UnqueueNetplayerPositionRequest();
-            Plugin.Instance.CAN_DAMAGE_ENEMIES = false;
+            Plugin.Instance.DAMAGE_BEING_REPLAYED = IntPtr.Zero;
         }
 
 
@@ -1722,7 +1746,8 @@ namespace MegabonkTogether.Services
 
             if (ePickup == EPickup.Xp && !IsSharedExperienceEnabled())
             {
-                pickup.value = gameBalanceService.GetPickupXpValue();
+                value = gameBalanceService.GetPickupXpValue();
+                pickup.value = value; //Clients spawn it with the same value
             }
 
             var netplayId = pickupManagerService.AddSpawnedPickup(pickup);
@@ -2132,11 +2157,15 @@ namespace MegabonkTogether.Services
 
         private void OnReceivedWeaponAdded(WeaponAdded added)
         {
+            ReplayInventoryChange(added.OwnerId, () => TryReplayWeaponAdded(added));
+        }
+
+        private bool TryReplayWeaponAdded(WeaponAdded added)
+        {
             var player = playerManagerService.GetNetPlayerByNetplayId(added.OwnerId);
             if (player == null)
             {
-                logger.LogWarning($"Player not found for ConnectionId: {added.OwnerId} when processing OnReceivedWeaponAdded.");
-                return;
+                return false;
             }
 
             if (DataManager.Instance.weapons.TryGetValue((EWeapon)added.Weapon, out var weaponData))
@@ -2160,6 +2189,8 @@ namespace MegabonkTogether.Services
                 Plugin.Instance.RestorePlayerInventoryActions();
                 Plugin.CAN_SEND_MESSAGES = true;
             }
+
+            return true;
         }
 
         public void OnTomeAdded(TomeInventory instance, TomeData tomeData, Il2CppSystem.Collections.Generic.List<StatModifier> upgradeOffer, ERarity rarity)
@@ -2201,11 +2232,15 @@ namespace MegabonkTogether.Services
 
         private void OnReceivedTomeAdded(TomeAdded added)
         {
+            ReplayInventoryChange(added.OwnerId, () => TryReplayTomeAdded(added));
+        }
+
+        private bool TryReplayTomeAdded(TomeAdded added)
+        {
             var player = playerManagerService.GetNetPlayerByNetplayId(added.OwnerId);
             if (player == null)
             {
-                logger.LogWarning($"Player not found for ConnectionId: {added.OwnerId} when processing OnReceivedTomeAdded.");
-                return;
+                return false;
             }
 
             if (DataManager.Instance.tomeData.TryGetValue((ETome)added.Tome, out var tomeData))
@@ -2231,6 +2266,8 @@ namespace MegabonkTogether.Services
 
                 Plugin.CAN_SEND_MESSAGES = true;
             }
+
+            return true;
         }
 
         public void OnInteractableUsed(BaseInteractable instance)
@@ -4156,17 +4193,22 @@ namespace MegabonkTogether.Services
 
         private void OnReceivedItemAdded(ItemAdded added)
         {
+            ReplayInventoryChange(added.OwnerId, () => TryReplayItemAdded(added));
+        }
+
+        private bool TryReplayItemAdded(ItemAdded added)
+        {
             var netPlayer = playerManagerService.GetNetPlayerByNetplayId(added.OwnerId);
             if (netPlayer == null)
             {
-                logger.LogWarning("NetPlayer not found in PlayerManagerService when processing OnReceivedItemAdded.");
-                return;
+                return false;
             }
 
             var item = (EItem)added.EItem;
             Plugin.CAN_SEND_MESSAGES = false;
             netPlayer.AddItem(item);
             Plugin.CAN_SEND_MESSAGES = true;
+            return true;
         }
 
         public void OnItemRemoved(EItem item)
@@ -4190,17 +4232,22 @@ namespace MegabonkTogether.Services
 
         private void OnReceivedItemRemoved(ItemRemoved removed)
         {
+            ReplayInventoryChange(removed.OwnerId, () => TryReplayItemRemoved(removed));
+        }
+
+        private bool TryReplayItemRemoved(ItemRemoved removed)
+        {
             var netPlayer = playerManagerService.GetNetPlayerByNetplayId(removed.OwnerId);
             if (netPlayer == null)
             {
-                logger.LogWarning("NetPlayer not found in PlayerManagerService when processing OnReceivedItemRemoved.");
-                return;
+                return false;
             }
 
             var item = (EItem)removed.EItem;
             Plugin.CAN_SEND_MESSAGES = false;
             netPlayer.RemoveItem(item);
             Plugin.CAN_SEND_MESSAGES = true;
+            return true;
         }
 
         public void OnWeaponToggled(WeaponInventory instance, EWeapon eWeapon, bool enable)
@@ -4225,23 +4272,85 @@ namespace MegabonkTogether.Services
 
         private void OnReceivedWeaponToggled(WeaponToggled toggled)
         {
+            ReplayInventoryChange(toggled.OwnerId, () => TryReplayWeaponToggled(toggled));
+        }
+
+        private bool TryReplayWeaponToggled(WeaponToggled toggled)
+        {
             var netPlayer = playerManagerService.GetNetPlayerByNetplayId(toggled.OwnerId);
-            if (netPlayer == null)
+            if (netPlayer == null || netPlayer.Inventory?.weaponInventory == null)
             {
-                logger.LogWarning("NetPlayer not found in PlayerManagerService when processing OnReceivedWeaponToggled.");
-                return;
+                return false;
             }
-            var weaponInventory = netPlayer.Inventory.weaponInventory;
-            if (weaponInventory == null)
-            {
-                logger.LogWarning("WeaponInventory not found on NetPlayer when processing OnReceivedWeaponToggled.");
-                return;
-            }
+
             Plugin.CAN_SEND_MESSAGES = false;
 
             netPlayer.ToggleWeapon((EWeapon)toggled.EWeapon, toggled.Enabled);
 
             Plugin.CAN_SEND_MESSAGES = true;
+            return true;
+        }
+
+        /// <summary>
+        /// Apply a remote player's build change to its local copy. If its NetPlayer doesn't exist yet (e.g. received while
+        /// spawning), keep it and retry each frame instead of losing it for the whole run. Changes of a player stay in order.
+        /// </summary>
+        private void ReplayInventoryChange(uint ownerId, Func<bool> tryReplay)
+        {
+            if (pendingInventoryReplays.Any(pending => pending.OwnerId == ownerId) || !TryReplaySafely(ownerId, tryReplay))
+            {
+                pendingInventoryReplays.Add((ownerId, Time.realtimeSinceStartup, tryReplay));
+            }
+        }
+
+        /// <summary>
+        /// A NetPlayer still being spawned may not be fully initialized: a failure is retried (until the timeout), not fatal
+        /// </summary>
+        private bool TryReplaySafely(uint ownerId, Func<bool> tryReplay)
+        {
+            try
+            {
+                return tryReplay();
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning($"Build change of player {ownerId} failed, will retry: {ex.Message}");
+                return false;
+            }
+            finally
+            {
+                Plugin.CAN_SEND_MESSAGES = true;
+            }
+        }
+
+        public void RetryPendingInventoryReplays()
+        {
+            if (pendingInventoryReplays.Count == 0)
+            {
+                return;
+            }
+
+            var now = Time.realtimeSinceStartup;
+            var blockedOwners = new HashSet<uint>();
+            for (var i = 0; i < pendingInventoryReplays.Count;)
+            {
+                var (ownerId, deferredAt, tryReplay) = pendingInventoryReplays[i];
+                if (!blockedOwners.Contains(ownerId) && TryReplaySafely(ownerId, tryReplay))
+                {
+                    pendingInventoryReplays.RemoveAt(i);
+                    continue;
+                }
+
+                if (now - deferredAt > INVENTORY_REPLAY_TIMEOUT)
+                {
+                    logger.LogWarning($"Dropping a build change of player {ownerId}: its NetPlayer never appeared.");
+                    pendingInventoryReplays.RemoveAt(i);
+                    continue;
+                }
+
+                blockedOwners.Add(ownerId);
+                i++;
+            }
         }
 
         public void OnSpawnedObjectInCrypt(GameObject obj)
@@ -4624,32 +4733,6 @@ namespace MegabonkTogether.Services
                 MyTime.Unpause();
             }
             //EncounterWindows.A_WindowClosed.Invoke();
-        }
-
-        public void OnChangeGold(int amount)
-        {
-            IGameNetworkMessage message = new GoldChanged
-            {
-                Amount = amount,
-                OwnerId = playerManagerService.GetLocalPlayer().ConnectionId
-            };
-
-            var isHost = IsServerMode() ?? false;
-            if (isHost)
-            {
-                udpClientService.SendToAllClients(message, LiteNetLib.DeliveryMethod.ReliableOrdered);
-            }
-            else
-            {
-                udpClientService.SendToHost(message, LiteNetLib.DeliveryMethod.ReliableOrdered);
-            }
-        }
-
-        private void OnReceivedChangeGold(GoldChanged changed)
-        {
-            Plugin.CAN_SEND_MESSAGES = false;
-            GameManager.Instance.player.inventory.ChangeGold(changed.Amount);
-            Plugin.CAN_SEND_MESSAGES = true;
         }
     }
 }
