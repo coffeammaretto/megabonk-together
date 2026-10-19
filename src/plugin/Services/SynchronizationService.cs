@@ -1706,8 +1706,6 @@ namespace MegabonkTogether.Services
                 pickup.value = gameBalanceService.GetPickupXpValue();
             }
 
-            pickup.readyForPickupTime += 2.0f; //Attempt to compensate for network delay ?
-
             var netplayId = pickupManagerService.AddSpawnedPickup(pickup);
 
             DynamicData.For(pickup).Set("pickupId", netplayId);
@@ -1762,33 +1760,38 @@ namespace MegabonkTogether.Services
 
         public void OnPickupApplied(Pickup instance)
         {
-            (var pickupId, var pickupSpawned) = pickupManagerService.GetPickupByReference(instance);
-            if (pickupSpawned == null)
+            var pickupIds = pickupManagerService.RemovePickupByReference(instance, true);
+            if (pickupIds.Count == 0)
             {
-                logger.LogWarning($"Pickup {pickupId} not found in PickupManagerService when processing OnPickupApplied. Deleting");
+                logger.LogWarning($"Pickup not found in PickupManagerService when processing OnPickupApplied. Deleting");
                 DynamicData.For(instance).Data.Clear();
                 PickupManager.Instance.DespawnPickup(instance);
 
                 return;
             }
 
-            pickupManagerService.RemoveSpawnedPickupById(pickupId);
             DynamicData.For(instance).Data.Clear();
 
-            IGameNetworkMessage message = new PickupApplied
-            {
-                PickupId = pickupId,
-                OwnerId = playerManagerService.GetLocalPlayer().ConnectionId
-            };
-
             var isHost = IsServerMode() ?? false;
-            if (isHost)
+
+            // A stacked pickup carries several ids, and other players may not have stacked them the same way:
+            // report all of them so no copy is left on the ground elsewhere
+            foreach (var pickupId in pickupIds)
             {
-                udpClientService.SendToAllClients(message, LiteNetLib.DeliveryMethod.ReliableOrdered);
-            }
-            else
-            {
-                udpClientService.SendToHost(message, LiteNetLib.DeliveryMethod.ReliableOrdered);
+                IGameNetworkMessage message = new PickupApplied
+                {
+                    PickupId = pickupId,
+                    OwnerId = playerManagerService.GetLocalPlayer().ConnectionId
+                };
+
+                if (isHost)
+                {
+                    udpClientService.SendToAllClients(message, LiteNetLib.DeliveryMethod.ReliableOrdered);
+                }
+                else
+                {
+                    udpClientService.SendToHost(message, LiteNetLib.DeliveryMethod.ReliableOrdered);
+                }
             }
         }
 
@@ -1874,7 +1877,12 @@ namespace MegabonkTogether.Services
 
             DynamicData.For(pickup).Data.Clear();
 
-            PickupManager.Instance.DespawnPickup(pickup);
+            // Already back in the pool (e.g. another id of the same stack was applied first): despawning twice would
+            // put it in the pool twice and hand the same object to two pickups later
+            if (pickup.gameObject.activeSelf)
+            {
+                PickupManager.Instance.DespawnPickup(pickup);
+            }
             pickupManagerService.RemoveSpawnedPickupById(applied.PickupId);
         }
 
@@ -1883,7 +1891,10 @@ namespace MegabonkTogether.Services
             var pickup = pickupManagerService.GetSpawnedPickupById(player.PickupId);
             if (pickup == null)
             {
-                logger.LogWarning($"Pickup {player.PickupId} not found in PickupManagerService when processing OnReceivedPickupFollowingPlayer by player {player.PlayerId}.");
+                if (!playerManagerService.IsLocalConnectionId(player.PlayerId)) //Expected when we already collected it locally
+                {
+                    logger.LogWarning($"Pickup {player.PickupId} not found in PickupManagerService when processing OnReceivedPickupFollowingPlayer by player {player.PlayerId}.");
+                }
                 return;
             }
 
@@ -1907,6 +1918,11 @@ namespace MegabonkTogether.Services
             }
 
             var dynPickup = DynamicData.For(pickup);
+            if (dynPickup.Get<uint?>("ownerId") == player.PlayerId && pickup.target == target)
+            {
+                return; //Already following that player (picked up locally before the host confirmed, or another id of the same stack)
+            }
+
             dynPickup.Set("ownerId", player.PlayerId);
 
             Plugin.CAN_SEND_MESSAGES = false;

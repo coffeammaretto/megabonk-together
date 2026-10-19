@@ -125,6 +125,17 @@ namespace MegabonkTogether.Patches
             }
 
             synchronizationService.OnWantToStartFollowingPickup(__instance);
+
+            // Client: collect right away instead of waiting for the host round-trip. The host still arbitrates:
+            // if someone else already owns this pickup, its PickupFollowingPlayer reply retargets it.
+            // Trade-off: a pickup touched by two players within the latency window can be collected by both.
+            if (!(synchronizationService.IsServerMode() ?? false))
+            {
+                dynInstance.Set("ownerId", playerManagerService.GetLocalPlayer().ConnectionId);
+                target = GameManager.Instance.player.transform;
+                return true;
+            }
+
             return false;
         }
     }
