@@ -72,6 +72,7 @@ namespace MegabonkTogether.Services
         private static event Action<PartySettings> PartySettingsEvents;
         private static event Action<PlayerDownedChanged> PlayerDownedChangedEvents;
         private static event Action<GiveItem> GiveItemEvents;
+        private static event Action<PingPlaced> PingPlacedEvents;
 
         public static void OnSpawnedObject(SpawnedObject spawnedObject)
         {
@@ -880,6 +881,19 @@ namespace MegabonkTogether.Services
             MainThreadDispatcher.Enqueue(() =>
             {
                 GiveItemEvents?.Invoke(giveItem);
+            });
+        }
+
+        public static void SubscribePingPlacedEvents(Action<PingPlaced> action)
+        {
+            PingPlacedEvents += action;
+        }
+
+        public static void OnPingPlaced(PingPlaced pingPlaced)
+        {
+            MainThreadDispatcher.Enqueue(() =>
+            {
+                PingPlacedEvents?.Invoke(pingPlaced);
             });
         }
     }

@@ -18,6 +18,7 @@ namespace MegabonkTogether.Configuration
         public static ConfigEntry<bool> AllowSavesDuringNetplay { get; private set; }
         public static ConfigEntry<bool> EnabledSharedExperience { get; private set; }
         public static ConfigEntry<float> RewardWindowInputDelay { get; private set; }
+        public static ConfigEntry<UnityEngine.KeyCode> PingKey { get; private set; }
 
         // Party rules: the host's values apply to everyone
         public static ConfigEntry<bool> ScaleFreeChestsWithPlayers { get; private set; }
@@ -93,6 +94,9 @@ namespace MegabonkTogether.Configuration
                 1f,
                 "Seconds during which clicks and presses are ignored after a level up, chest or other reward window appears in netplay, to prevent accidental picks. 0 to disable."
             );
+
+            PingKey = config.Bind("Controls", "PingKey", UnityEngine.KeyCode.Mouse2,
+                "Key to mark the spot you look at for the whole team (ping).");
 
             const string party = "Party (host settings, apply to everyone)";
             ScaleFreeChestsWithPlayers = config.Bind(party, "ScaleFreeChestsWithPlayers", false,

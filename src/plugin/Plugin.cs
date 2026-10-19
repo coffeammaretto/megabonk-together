@@ -160,6 +160,7 @@ namespace MegabonkTogether
                 services.AddSingleton<IPartySettingsService, PartySettingsService>();
                 services.AddSingleton<IPartyModifiersService, PartyModifiersService>();
                 services.AddSingleton<IDownedService, DownedService>();
+                services.AddSingleton<IPingService, PingService>();
                 services.AddSingleton<ITrackerService, TrackerService>();
             });
 
