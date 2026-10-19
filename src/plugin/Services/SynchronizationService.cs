@@ -3759,6 +3759,7 @@ namespace MegabonkTogether.Services
 
             localPlayer.Hp = 0;
             playerManagerService.UpdatePlayer(localPlayer);
+            playerManagerService.MarkDead(localPlayer.ConnectionId);
             GameManager.Instance.player.playerRenderer.gameObject.SetActive(false);
 
             var isHost = IsServerMode() ?? false;
@@ -3805,6 +3806,7 @@ namespace MegabonkTogether.Services
 
                 diedPlayer.Hp = 0;
                 playerManagerService.UpdatePlayer(diedPlayer);
+                playerManagerService.MarkDead(died.PlayerId);
                 var netPlayer = playerManagerService.GetNetPlayerByNetplayId(died.PlayerId);
                 if (netPlayer == null)
                 {
@@ -3836,6 +3838,7 @@ namespace MegabonkTogether.Services
             }
             else
             {
+                playerManagerService.MarkDead(died.PlayerId);
                 var diedNetPlayer = playerManagerService.GetNetPlayerByNetplayId(died.PlayerId);
                 if (diedNetPlayer == null)
                 {
@@ -4532,6 +4535,7 @@ namespace MegabonkTogether.Services
 
         public void OnRespawn(uint ownerId, Vector3 position)
         {
+            playerManagerService.MarkAlive(ownerId);
             var netplayer = playerManagerService.GetNetPlayerByNetplayId(ownerId);
             if (netplayer != null)
             {
@@ -4563,6 +4567,7 @@ namespace MegabonkTogether.Services
 
         private void OnReceivedPlayerRespawned(PlayerRespawned respawned)
         {
+            playerManagerService.MarkAlive(respawned.OwnerId);
             var netplayer = playerManagerService.GetNetPlayerByNetplayId(respawned.OwnerId);
             if (netplayer != null)
             {

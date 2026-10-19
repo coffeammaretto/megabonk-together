@@ -52,6 +52,14 @@ namespace MegabonkTogether.Services
 
         public bool IsGameOver();
         public uint? GetRandomPlayerAliveConnectionId();
+
+        /// <summary>
+        /// Death is explicit: a dead player's reported HP can go back above 0 (regen, items), which made enemies chase its
+        /// hidden body (walking away, flying up). Only a revive or a new stage brings it back.
+        /// </summary>
+        public void MarkDead(uint connectionId);
+        public void MarkAlive(uint connectionId);
+        public bool IsDead(uint connectionId);
         public IEnumerable<(uint, Rigidbody)> GetConnectionIdsAndRigidBodies();
         public void Disconnect(uint connectionId);
         public void Reset();
@@ -72,6 +80,7 @@ namespace MegabonkTogether.Services
     public class PlayerManagerService : IPlayerManagerService
     {
         private readonly ConcurrentDictionary<uint, Player> players = new();
+        private readonly ConcurrentDictionary<uint, byte> deadPlayers = new();
         private readonly ManualLogSource logger;
         private ConcurrentDictionary<uint, NetPlayer> spawnedPlayers = [];
         private uint localConnectionId = 0;
@@ -132,12 +141,27 @@ namespace MegabonkTogether.Services
 
         public IEnumerable<Player> GetAllPlayersAlive()
         {
-            return [.. players.Where(p => p.Value.Hp > 0).Select(p => p.Value)];
+            return [.. players.Where(p => p.Value.Hp > 0 && !deadPlayers.ContainsKey(p.Key)).Select(p => p.Value)];
+        }
+
+        public void MarkDead(uint connectionId)
+        {
+            deadPlayers.TryAdd(connectionId, 0);
+        }
+
+        public void MarkAlive(uint connectionId)
+        {
+            deadPlayers.TryRemove(connectionId, out _);
+        }
+
+        public bool IsDead(uint connectionId)
+        {
+            return deadPlayers.ContainsKey(connectionId);
         }
 
         public uint? GetRandomPlayerAliveConnectionId()
         {
-            var alivePlayers = players.Where(p => p.Value.Hp > 0).ToList();
+            var alivePlayers = players.Where(p => p.Value.Hp > 0 && !deadPlayers.ContainsKey(p.Key)).ToList();
 
             if (alivePlayers.Count == 0)
             {
@@ -460,6 +484,7 @@ namespace MegabonkTogether.Services
             projectileToSpawnQueue.Clear();
             getNetplayerPositionQueue.Clear();
             getNetplayerPositionRequestQueue.Clear();
+            deadPlayers.Clear(); //Everyone starts the next stage alive, as the HP based check did
 
         }
 
@@ -485,7 +510,7 @@ namespace MegabonkTogether.Services
 
         public bool IsGameOver()
         {
-            return players.Values.All(p => p.Hp == 0);
+            return players.All(p => p.Value.Hp == 0 || deadPlayers.ContainsKey(p.Key));
         }
 
         public void Disconnect(uint connectionId)
@@ -504,6 +529,7 @@ namespace MegabonkTogether.Services
         public void Reset()
         {
             players.Clear();
+            deadPlayers.Clear();
             foreach (var spawnedPlayer in spawnedPlayers.Values.ToList())
             {
                 try
