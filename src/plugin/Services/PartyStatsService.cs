@@ -50,6 +50,7 @@ namespace MegabonkTogether.Services
 
         private readonly Dictionary<uint, float[]> remoteStats = [];
         private readonly Dictionary<uint, Dictionary<string, StatModifierModel>> appliedRemotePassives = [];
+        private readonly Dictionary<uint, List<StatModifierModel>> remotePassives = [];
         private readonly Dictionary<EStat, float[]> remoteValues = [];
         private (PartyStatMode Mode, float LuckCap, float DifficultyCap) currentRules;
         private readonly Dictionary<EStat, float> ownValues = [];
@@ -100,6 +101,10 @@ namespace MegabonkTogether.Services
                 }
 
                 ForgetDisconnectedPlayers(localPlayer.ConnectionId, localInventory);
+                foreach (var ownerId in remotePassives.Keys.ToList())
+                {
+                    ApplyRemotePassivesInRange(localInventory, ownerId); //Owners move in and out of the radius
+                }
                 RefreshRemoteSums(localPlayer.ConnectionId, localInventory); //Also catches party rule changes
                 SendOwnStatsIfChanged(localPlayer.ConnectionId, localInventory, now);
             }
@@ -354,8 +359,33 @@ namespace MegabonkTogether.Services
             }
 
             remoteStats[message.OwnerId] = message.Stats;
-            ApplyRemotePassives(localInventory, message.OwnerId, message.PassiveModifiers ?? []);
+            remotePassives[message.OwnerId] = message.PassiveModifiers ?? [];
+            ApplyRemotePassivesInRange(localInventory, message.OwnerId);
             RefreshRemoteSums(localPlayer.ConnectionId, localInventory);
+        }
+
+        /// <summary>
+        /// With a shared passive radius, a player's passive only applies while its owner is close enough
+        /// </summary>
+        private void ApplyRemotePassivesInRange(PlayerInventory localInventory, uint ownerId)
+        {
+            if (!remotePassives.TryGetValue(ownerId, out var modifiers))
+            {
+                return;
+            }
+
+            var radius = partySettingsService.Current.SharedPassiveRadius;
+            if (radius > 0f)
+            {
+                var owner = playerManagerService.GetNetPlayerByNetplayId(ownerId);
+                var isInRange = owner?.Model != null && Vector3.Distance(owner.Model.transform.position, GameManager.Instance.player.transform.position) <= radius;
+                if (!isInRange)
+                {
+                    modifiers = [];
+                }
+            }
+
+            ApplyRemotePassives(localInventory, ownerId, modifiers);
         }
 
         /// <summary>
@@ -447,6 +477,7 @@ namespace MegabonkTogether.Services
             foreach (var playerId in gone)
             {
                 remoteStats.Remove(playerId);
+                remotePassives.Remove(playerId);
                 ApplyRemotePassives(localInventory, playerId, []);
                 appliedRemotePassives.Remove(playerId);
             }
@@ -458,6 +489,7 @@ namespace MegabonkTogether.Services
         {
             remoteStats.Clear();
             appliedRemotePassives.Clear();
+            remotePassives.Clear();
             remoteValues.Clear();
             currentRules = default;
             ownValues.Clear();

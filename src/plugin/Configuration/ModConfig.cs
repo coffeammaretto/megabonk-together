@@ -33,6 +33,7 @@ namespace MegabonkTogether.Configuration
         public static ConfigEntry<float> DownedReviveSeconds { get; private set; }
         public static ConfigEntry<float> DownedReviveRadius { get; private set; }
         public static ConfigEntry<float> DownedReviveHpFraction { get; private set; }
+        public static ConfigEntry<float> SharedPassiveRadius { get; private set; }
 
         public static void Initialize(ConfigFile config)
         {
@@ -120,6 +121,8 @@ namespace MegabonkTogether.Configuration
                 "How close (meters) a teammate must be to revive a downed player.");
             DownedReviveHpFraction = config.Bind(party, "DownedReviveHpFraction", 0.3f,
                 "Fraction of max HP a revived player gets back.");
+            SharedPassiveRadius = config.Bind(party, "SharedPassiveRadius", 0f,
+                "Character passives of the other players apply within this distance (meters) of their owner. 0 = everywhere.");
         }
 
         public static PartySettings ToPartySettings()
@@ -139,6 +142,7 @@ namespace MegabonkTogether.Configuration
                 DownedReviveSeconds = DownedReviveSeconds.Value,
                 DownedReviveRadius = DownedReviveRadius.Value,
                 DownedReviveHpFraction = DownedReviveHpFraction.Value,
+                SharedPassiveRadius = SharedPassiveRadius.Value,
             };
         }
 

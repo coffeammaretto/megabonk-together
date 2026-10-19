@@ -30,6 +30,11 @@ namespace MegabonkTogether.Common.Messages.GameNetworkMessages
         public float DownedReviveSeconds { get; set; } = 3f;
         public float DownedReviveRadius { get; set; } = 4f;
         public float DownedReviveHpFraction { get; set; } = 0.3f;
+
+        /// <summary>
+        /// Character passives of the other players apply within this distance of their owner, 0 for everywhere
+        /// </summary>
+        public float SharedPassiveRadius { get; set; } = 0f;
     }
 
     public enum PartyStatMode : byte
