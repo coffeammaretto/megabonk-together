@@ -191,14 +191,19 @@ namespace MegabonkTogether
                 Log.LogInfo("Auto-update is disabled in configuration.");
             }
 
-            try
+            // Patch each class separately so a single broken target (e.g. after a game update)
+            // does not silently skip every patch that comes after it.
+            var harmony = new HarmonyLib.Harmony(MyPluginInfo.PLUGIN_GUID);
+            foreach (var type in HarmonyLib.AccessTools.GetTypesFromAssembly(typeof(Plugin).Assembly))
             {
-                var harmony = new HarmonyLib.Harmony(MyPluginInfo.PLUGIN_GUID);
-                harmony.PatchAll();
-            }
-            catch (Exception ex)
-            {
-                Log.LogError($"Harmony patching failed: {ex}");
+                try
+                {
+                    harmony.CreateClassProcessor(type).Patch();
+                }
+                catch (Exception ex)
+                {
+                    Log.LogError($"Harmony patching failed for {type.FullName}: {ex}");
+                }
             }
 
             var go = new GameObject("MainThreadDispatcher");

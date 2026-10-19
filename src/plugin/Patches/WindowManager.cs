@@ -59,6 +59,7 @@ namespace MegabonkTogether.Patches
                     CoroutineRunner.Instance.Stop(SpawnPlayerPortalPatches.WaitForLobbyCoroutine);
                 }
 
+                if (!ModConfig.CheckForUpdates.Value) return;
                 if (autoUpdaterService.IsCustomBuild() && hasShownUpdateModal) return;
 
                 Task.Run(async () =>
