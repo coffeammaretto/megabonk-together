@@ -1,4 +1,5 @@
 ﻿using MegabonkTogether.Common.Messages.GameNetworkMessages;
+using MegabonkTogether.Helpers;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using UnityEngine;
@@ -6,8 +7,9 @@ using UnityEngine;
 namespace MegabonkTogether.Services
 {
     /// <summary>
-    /// Shared experience reward pause. Each player is choosing (reward window open), waiting (done, paused until the others
-    /// are done) or free. The host releases the waiting players once nobody is choosing anymore.
+    /// Shared experience reward pause. Each player is choosing (reward window open), waiting (paused until the others are
+    /// done) or free. As soon as someone is choosing, the host pauses everyone else; once nobody is choosing anymore, it
+    /// releases the waiting players.
     /// Based on states rather than counting "done" events, so a level up only one player got, or a lost/duplicated message,
     /// can no longer leave everyone waiting.
     /// </summary>
@@ -15,6 +17,11 @@ namespace MegabonkTogether.Services
     {
         public bool IsWaiting { get; }
         public float WaitingSince { get; }
+
+        /// <summary>
+        /// Waiting with its own reward done but not closed yet (window hidden), rather than just paused for the others
+        /// </summary>
+        public bool IsWaitingOnHiddenReward { get; }
 
         /// <summary>
         /// Set while releasing the local player, so the RewardFinished patch lets the game close the reward
@@ -35,6 +42,11 @@ namespace MegabonkTogether.Services
         public void RequestForceClose();
 
         /// <summary>
+        /// Host: whether the local player or one of the given remote players is choosing a reward
+        /// </summary>
+        public bool IsAnyoneChoosing(IEnumerable<uint> remotePlayerIds);
+
+        /// <summary>
         /// Host: whether waiting players can be released. Increments CloseSeq when true.
         /// </summary>
         public bool TryClose(IEnumerable<uint> remotePlayerIds);
@@ -53,39 +65,51 @@ namespace MegabonkTogether.Services
 
         public bool IsWaiting { get; private set; } = false;
         public float WaitingSince { get; private set; } = 0f;
+        public bool IsWaitingOnHiddenReward { get; private set; } = false;
         public bool IsReleasing { get; set; } = false;
         public uint CloseSeq { get; set; } = 0;
 
         public EncounterSyncState GetLocalState()
         {
+            var encounterWindows = UiManager.Instance?.encounterWindows;
+            var encounterInProgress = encounterWindows != null && encounterWindows.encounterInProgress;
+
             if (IsWaiting)
             {
-                return EncounterSyncState.Waiting;
+                if (IsWaitingOnHiddenReward || !encounterInProgress)
+                {
+                    return EncounterSyncState.Waiting;
+                }
+
+                // Got its own reward while paused for the others (e.g. xp received just before the pause): choosing now
+                IsWaiting = false;
+                ScreenTextHelper.Clear();
             }
 
-            var encounterWindows = UiManager.Instance?.encounterWindows;
-            if (encounterWindows != null && encounterWindows.encounterInProgress)
-            {
-                return EncounterSyncState.Choosing;
-            }
-
-            return EncounterSyncState.Free;
+            return encounterInProgress ? EncounterSyncState.Choosing : EncounterSyncState.Free;
         }
 
         public void StartWaiting()
         {
+            var encounterWindows = UiManager.Instance?.encounterWindows;
+            var encounterInProgress = encounterWindows != null && encounterWindows.encounterInProgress;
+
             if (IsWaiting)
             {
+                // Paused for the others, then finished a reward of its own before GetLocalState noticed it: release must close it
+                IsWaitingOnHiddenReward |= encounterInProgress;
                 return;
             }
 
             IsWaiting = true;
+            IsWaitingOnHiddenReward = encounterInProgress;
             WaitingSince = Time.realtimeSinceStartup;
         }
 
         public void StopWaiting()
         {
             IsWaiting = false;
+            IsWaitingOnHiddenReward = false;
         }
 
         public void SetRemoteState(uint playerId, EncounterSyncState state, uint closeSeq)
@@ -103,6 +127,11 @@ namespace MegabonkTogether.Services
             forceCloseRequested = true;
         }
 
+        public bool IsAnyoneChoosing(IEnumerable<uint> remotePlayerIds)
+        {
+            return GetPlayersStatus(remotePlayerIds).AnyChoosing;
+        }
+
         public bool TryClose(IEnumerable<uint> remotePlayerIds)
         {
             var now = Time.realtimeSinceStartup;
@@ -111,6 +140,20 @@ namespace MegabonkTogether.Services
                 return false;
             }
 
+            var (anyWaiting, anyChoosing) = GetPlayersStatus(remotePlayerIds);
+            if (!forceCloseRequested && (!anyWaiting || anyChoosing))
+            {
+                return false;
+            }
+
+            forceCloseRequested = false;
+            lastCloseAt = now;
+            CloseSeq++;
+            return true;
+        }
+
+        private (bool AnyWaiting, bool AnyChoosing) GetPlayersStatus(IEnumerable<uint> remotePlayerIds)
+        {
             var localState = GetLocalState();
             var anyWaiting = localState == EncounterSyncState.Waiting;
             var anyChoosing = localState == EncounterSyncState.Choosing;
@@ -132,20 +175,12 @@ namespace MegabonkTogether.Services
                 }
             }
 
-            if (!forceCloseRequested && (!anyWaiting || anyChoosing))
-            {
-                return false;
-            }
-
-            forceCloseRequested = false;
-            lastCloseAt = now;
-            CloseSeq++;
-            return true;
+            return (anyWaiting, anyChoosing);
         }
 
         public void ResetForNextLevel()
         {
-            IsWaiting = false;
+            StopWaiting();
             IsReleasing = false;
             forceCloseRequested = false;
             remoteStates.Clear();

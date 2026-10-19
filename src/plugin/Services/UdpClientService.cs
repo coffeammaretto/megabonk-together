@@ -721,6 +721,9 @@ namespace MegabonkTogether.Services
                     case CloseEncounter closeEncounter:
                         EventManager.OnCloseEncounter(closeEncounter);
                         break;
+                    case EncounterPaused encounterPaused:
+                        EventManager.OnEncounterPaused(encounterPaused);
+                        break;
                     case GoldChanged goldChanged:
                         EventManager.OnGoldChanged(goldChanged);
                         break;

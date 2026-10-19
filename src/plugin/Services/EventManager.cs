@@ -66,6 +66,7 @@ namespace MegabonkTogether.Services
         private static event Action<PlayerRespawned> PlayerRespawnedEvents;
         private static event Action<AddXp> AddXpEvents;
         private static event Action<CloseEncounter> CloseEncounterEvents;
+        private static event Action<EncounterPaused> EncounterPausedEvents;
         private static event Action<GoldChanged> GoldChangedEvents;
 
         public static void OnSpawnedObject(SpawnedObject spawnedObject)
@@ -797,6 +798,19 @@ namespace MegabonkTogether.Services
             MainThreadDispatcher.Enqueue(() =>
             {
                 CloseEncounterEvents?.Invoke(closeEncounter);
+            });
+        }
+
+        public static void SubscribeEncounterPausedEvents(Action<EncounterPaused> action)
+        {
+            EncounterPausedEvents += action;
+        }
+
+        public static void OnEncounterPaused(EncounterPaused encounterPaused)
+        {
+            MainThreadDispatcher.Enqueue(() =>
+            {
+                EncounterPausedEvents?.Invoke(encounterPaused);
             });
         }
 

@@ -165,6 +165,7 @@ namespace MegabonkTogether.Services
         private float lastEncounterStateSentAt = 0f;
         private bool wasUnstuckKeyDown = false;
         private bool isStuckHintShown = false;
+        private bool wasAnyoneChoosing = false;
 
         private CancellationTokenSource cancellationTokenSource = new();
         private CancellationToken cancellationToken = default;
@@ -253,6 +254,7 @@ namespace MegabonkTogether.Services
             EventManager.SubscribePlayerRespawnedEvents(OnReceivedPlayerRespawned);
             EventManager.SubscribeAddXpEvents(OnReceivedAddXp);
             EventManager.SubscribeCloseEncounterEvents(OnReceivedCloseEncounter);
+            EventManager.SubscribeEncounterPausedEvents(OnReceivedEncounterPaused);
             EventManager.SubscribeGoldChangedEvents(OnReceivedChangeGold);
 
             cancellationToken = cancellationTokenSource.Token;
@@ -720,7 +722,13 @@ namespace MegabonkTogether.Services
             projectileManagerService.ResetForNextLevel();
             pickupManagerService.ResetForNextLevel();
             chestManagerService.ResetForNextLevel();
+            if (encounterService.IsWaiting) //Don't carry a pause for the others' choices to the next level
+            {
+                MyTime.Unpause();
+                ScreenTextHelper.Clear();
+            }
             encounterService.ResetForNextLevel();
+            wasAnyoneChoosing = false;
             specificDesertGraves.Clear();
             currentCoffin = null;
 
@@ -2372,6 +2380,18 @@ namespace MegabonkTogether.Services
             }
         }
 
+        private static Assets.Scripts.UI.InGame.Rewards.EEncounter GetChestEncounter(EChest chestType)
+        {
+            return chestType switch
+            {
+                EChest.Corrupt => Assets.Scripts.UI.InGame.Rewards.EEncounter.ChestEvil,
+                EChest.Free => Assets.Scripts.UI.InGame.Rewards.EEncounter.ChestFree,
+                EChest.FreeCrypt => Assets.Scripts.UI.InGame.Rewards.EEncounter.ChestFreeCrypt,
+                EChest.Ghost => Assets.Scripts.UI.InGame.Rewards.EEncounter.ChestGhost,
+                _ => Assets.Scripts.UI.InGame.Rewards.EEncounter.ChestNormal,
+            };
+        }
+
         private static InteractableAction GetActionByInteractable(BaseInteractable interactable)
         {
             if (interactable == null) return InteractableAction.Used;
@@ -2571,7 +2591,7 @@ namespace MegabonkTogether.Services
                     var chest = interactableObj.GetComponent<InteractableChest>();
                     if (chest != null)
                     {
-                        if (GameManager.Instance.player.IsDead() || !chest.CanAfford())
+                        if (GameManager.Instance.player.IsDead())
                         {
                             MyTime.Pause();
                             RewardFinished();
@@ -2579,7 +2599,9 @@ namespace MegabonkTogether.Services
                         }
                         else
                         {
-                            chest.Interact();
+                            // Only the buyer pays: everyone else gets the chest reward for free, whatever their gold
+                            UiManager.Instance.encounterWindows.AddEncounter(GetChestEncounter(chest.chestType));
+                            GameObject.DestroyImmediate(interactableObj);
                         }
                         break;
                     }
@@ -4491,7 +4513,17 @@ namespace MegabonkTogether.Services
 
             if (isHost)
             {
-                var remotePlayerIds = playerManagerService.GetAllPlayers().Select(p => p.ConnectionId).Where(id => id != localPlayer.ConnectionId);
+                var remotePlayerIds = playerManagerService.GetAllPlayers().Select(p => p.ConnectionId).Where(id => id != localPlayer.ConnectionId).ToList();
+
+                var isAnyoneChoosing = encounterService.IsAnyoneChoosing(remotePlayerIds);
+                if (isAnyoneChoosing && !wasAnyoneChoosing) //Only when it starts, so the unstuck key can't get overridden
+                {
+                    IGameNetworkMessage pauseMessage = new EncounterPaused();
+                    udpClientService.SendToAllClients(pauseMessage, LiteNetLib.DeliveryMethod.ReliableOrdered);
+                    PauseForOtherPlayers();
+                }
+                wasAnyoneChoosing = isAnyoneChoosing;
+
                 if (encounterService.TryClose(remotePlayerIds))
                 {
                     IGameNetworkMessage closeMessage = new CloseEncounter
@@ -4528,6 +4560,31 @@ namespace MegabonkTogether.Services
             lastEncounterStateSentAt = now;
         }
 
+        private void OnReceivedEncounterPaused(EncounterPaused paused)
+        {
+            PauseForOtherPlayers();
+        }
+
+        /// <summary>
+        /// Someone started choosing a reward: pause until nobody is choosing anymore (unless choosing or already waiting)
+        /// </summary>
+        private void PauseForOtherPlayers()
+        {
+            if (UiManager.Instance == null || UiManager.Instance.encounterWindows == null)
+            {
+                return;
+            }
+
+            if (encounterService.GetLocalState() != EncounterSyncState.Free)
+            {
+                return;
+            }
+
+            encounterService.StartWaiting();
+            MyTime.Pause();
+            ScreenTextHelper.Show("Waiting for other player(s) choices...", new Vector2(0, -350));
+        }
+
         private void OnReceivedCloseEncounter(CloseEncounter close)
         {
             encounterService.CloseSeq = close.Seq;
@@ -4539,16 +4596,18 @@ namespace MegabonkTogether.Services
         /// </summary>
         private void OnCloseEncounter()
         {
+            encounterService.GetLocalState(); //Stops waiting if the player got its own reward meanwhile: it keeps it
             if (!encounterService.IsWaiting)
             {
                 return;
             }
 
+            var isWaitingOnHiddenReward = encounterService.IsWaitingOnHiddenReward;
             encounterService.StopWaiting();
             ScreenTextHelper.Clear();
 
             var encounterWindows = UiManager.Instance.encounterWindows;
-            if (encounterWindows.encounterInProgress)
+            if (isWaitingOnHiddenReward && encounterWindows.encounterInProgress)
             {
                 encounterService.IsReleasing = true;
                 try
