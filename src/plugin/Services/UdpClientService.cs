@@ -984,17 +984,12 @@ namespace MegabonkTogether.Services
                         EventManager.OnAddXp(addXp);
                         SendToAllClientsExcept(netPeerId, addXp.OwnerId, addXp);
                         break;
-                    case EncounterClosed encounterClosed:
-                        encounterService.AddClosedEncounterForPlayer(encounterClosed.OwnerId);
+                    case EncounterStateChanged encounterStateChanged: //Waiting players are released by SynchronizationService.UpdateEncounterSync
+                        encounterService.SetRemoteState(encounterStateChanged.OwnerId, encounterStateChanged.State, encounterStateChanged.CloseSeq);
 
-                        if (encounterService.IsClosable())
+                        if (encounterStateChanged.ForceClose)
                         {
-                            IGameNetworkMessage closeMessage = new CloseEncounter
-                            {
-                            };
-
-                            SendToAllClients(closeMessage, DeliveryMethod.ReliableOrdered);
-                            EventManager.OnCloseEncounter(closeMessage as CloseEncounter);
+                            encounterService.RequestForceClose();
                         }
 
                         break;

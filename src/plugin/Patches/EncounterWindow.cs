@@ -157,20 +157,18 @@ namespace MegabonkTogether.Patches
                 return true;
             }
 
+            if (encounterService.IsReleasing) //Everyone is done, let the game close the reward
+            {
+                return true;
+            }
+
             var currentQueue = __instance.rewardQueue;
             if (currentQueue.Count > 0) //Keep popping reward until queue is empty
             {
                 return true;
             }
 
-            if (encounterService.IsClosable())
-            {
-                ScreenTextHelper.Clear();
-                encounterService.ClearClosedEncounters();
-                return true;
-            }
-
-            synchronizationService.RewardFinished();
+            encounterService.StartWaiting();
 
             var ui = UiManager.Instance;
             ui.encounterWindows?.activeEncounterWindow?.gameObject.SetActive(false);

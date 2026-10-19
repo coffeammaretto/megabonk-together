@@ -128,6 +128,7 @@ namespace MegabonkTogether.Services
         public bool IsSharedExperienceEnabled();
         public void PlayerXpAddXp(int xp, int amount, float leftOverXp);
         public void RewardFinished();
+        public void UpdateEncounterSync();
         public void OnChangeGold(int amount);
     }
     internal class SynchronizationService : ISynchronizationService
@@ -157,6 +158,13 @@ namespace MegabonkTogether.Services
         private readonly ConcurrentDictionary<uint, ICollection<uint>> lampsChargingPlayers = [];
         private readonly List<GameObject> specificDesertGraves = [];
         private InteractableCoffin currentCoffin = null;
+
+        private const float ENCOUNTER_STATE_RESEND_INTERVAL = 1f;
+        private const float ENCOUNTER_STUCK_HINT_DELAY = 5f;
+        private EncounterSyncState? lastSentEncounterState = null;
+        private float lastEncounterStateSentAt = 0f;
+        private bool wasUnstuckKeyDown = false;
+        private bool isStuckHintShown = false;
 
         private CancellationTokenSource cancellationTokenSource = new();
         private CancellationToken cancellationToken = default;
@@ -293,6 +301,8 @@ namespace MegabonkTogether.Services
             cancellationTokenSource = new CancellationTokenSource();
             cancellationToken = cancellationTokenSource.Token;
             PrepareForNextLevel();
+            encounterService.Reset();
+            lastSentEncounterState = null;
             playerManagerService.Reset();
             enemyManagerService.ResetReviverSpawnCounts();
 
@@ -710,6 +720,7 @@ namespace MegabonkTogether.Services
             projectileManagerService.ResetForNextLevel();
             pickupManagerService.ResetForNextLevel();
             chestManagerService.ResetForNextLevel();
+            encounterService.ResetForNextLevel();
             specificDesertGraves.Clear();
             currentCoffin = null;
 
@@ -3855,15 +3866,7 @@ namespace MegabonkTogether.Services
                 return;
             }
 
-            if (IsSharedExperienceEnabled() && encounterService.IsClosable()) //Making sure to unblock people if somemone leave and we can close
-            {
-                IGameNetworkMessage closeMessage = new CloseEncounter
-                {
-                };
-
-                udpClientService.SendToAllClients(closeMessage, LiteNetLib.DeliveryMethod.ReliableOrdered);
-                OnCloseEncounter();
-            }
+            encounterService.RemoveRemoteState(disconnected.ConnectionId); //Not waited for anymore, UpdateEncounterSync releases the others
 
             var allPlayersAliveIdWithout = playerManagerService.GetAllPlayersAlive().Where(p => p.ConnectionId != disconnected.ConnectionId).Select(p => p.ConnectionId).ToList();
             var updated = enemyManagerService.ReTargetEnemies(disconnected.ConnectionId, allPlayersAliveIdWithout);
@@ -4416,49 +4419,149 @@ namespace MegabonkTogether.Services
             Plugin.CAN_SEND_MESSAGES = true;
         }
 
+        /// <summary>
+        /// Local player has nothing to choose (dead, can't afford the chest, ...): wait for the other players' choices.
+        /// A player choosing its own reward already waits once done.
+        /// </summary>
         public void RewardFinished()
         {
-            IGameNetworkMessage message = new EncounterClosed
+            if (encounterService.GetLocalState() == EncounterSyncState.Choosing)
             {
-                OwnerId = playerManagerService.GetLocalPlayer().ConnectionId,
-            };
+                return;
+            }
+
+            encounterService.StartWaiting();
+        }
+
+        /// <summary>
+        /// Shared experience reward pause, every frame: clients report their state, the host releases waiting players
+        /// once nobody is choosing. The unstuck key releases every waiting player in case it still gets stuck.
+        /// </summary>
+        public void UpdateEncounterSync()
+        {
+            if (!HasNetplaySessionStarted() || !IsSharedExperienceEnabled())
+            {
+                return;
+            }
+
+            if (UiManager.Instance == null || UiManager.Instance.encounterWindows == null)
+            {
+                return;
+            }
+
+            var localPlayer = playerManagerService.GetLocalPlayer();
+            if (localPlayer == null)
+            {
+                return;
+            }
 
             var isHost = IsServerMode() ?? false;
+            var now = Time.realtimeSinceStartup;
+
+            var isUnstuckKeyDown = BepInEx.Unity.IL2CPP.UnityEngine.Input.GetKeyInt((BepInEx.Unity.IL2CPP.UnityEngine.KeyCode)KeyCode.F8);
+            var isUnstuckKeyPressed = isUnstuckKeyDown && !wasUnstuckKeyDown;
+            wasUnstuckKeyDown = isUnstuckKeyDown;
+
+            if (encounterService.IsWaiting)
+            {
+                if (isUnstuckKeyPressed)
+                {
+                    logger.LogInfo("Unstuck key pressed, releasing waiting players");
+
+                    if (isHost)
+                    {
+                        encounterService.RequestForceClose();
+                    }
+                    else
+                    {
+                        SendEncounterState(localPlayer.ConnectionId, EncounterSyncState.Waiting, true, now);
+                        OnCloseEncounter(); //Don't depend on the host to get out
+                    }
+                }
+                else if (!isStuckHintShown && now - encounterService.WaitingSince >= ENCOUNTER_STUCK_HINT_DELAY)
+                {
+                    isStuckHintShown = true;
+                    ScreenTextHelper.Show("Waiting for other player(s) choices...\nStuck? Press F8 to continue", new Vector2(0, -350));
+                }
+            }
+            else
+            {
+                isStuckHintShown = false;
+            }
+
             if (isHost)
             {
-                encounterService.AddClosedEncounterForPlayer(playerManagerService.GetLocalPlayer().ConnectionId);
-
-                if (encounterService.IsClosable())
+                var remotePlayerIds = playerManagerService.GetAllPlayers().Select(p => p.ConnectionId).Where(id => id != localPlayer.ConnectionId);
+                if (encounterService.TryClose(remotePlayerIds))
                 {
                     IGameNetworkMessage closeMessage = new CloseEncounter
                     {
+                        Seq = encounterService.CloseSeq
                     };
 
                     udpClientService.SendToAllClients(closeMessage, LiteNetLib.DeliveryMethod.ReliableOrdered);
                     OnCloseEncounter();
                 }
+
+                return;
             }
-            else
+
+            var localState = encounterService.GetLocalState();
+            if (localState != lastSentEncounterState || now - lastEncounterStateSentAt >= ENCOUNTER_STATE_RESEND_INTERVAL)
             {
-                udpClientService.SendToHost(message, LiteNetLib.DeliveryMethod.ReliableOrdered);
+                SendEncounterState(localPlayer.ConnectionId, localState, false, now);
             }
+        }
+
+        private void SendEncounterState(uint localPlayerId, EncounterSyncState state, bool forceClose, float now)
+        {
+            IGameNetworkMessage message = new EncounterStateChanged
+            {
+                OwnerId = localPlayerId,
+                State = state,
+                CloseSeq = encounterService.CloseSeq,
+                ForceClose = forceClose
+            };
+
+            udpClientService.SendToHost(message, LiteNetLib.DeliveryMethod.ReliableOrdered);
+            lastSentEncounterState = state;
+            lastEncounterStateSentAt = now;
         }
 
         private void OnReceivedCloseEncounter(CloseEncounter close)
         {
-            encounterService.Close();
+            encounterService.CloseSeq = close.Seq;
             OnCloseEncounter();
         }
 
+        /// <summary>
+        /// Release the local player if it was waiting. A player still choosing keeps its reward and waits again once done.
+        /// </summary>
         private void OnCloseEncounter()
         {
-            if (UiManager.Instance.encounterWindows.encounterInProgress)
+            if (!encounterService.IsWaiting)
             {
-                UiManager.Instance.encounterWindows.RewardFinished();
+                return;
+            }
+
+            encounterService.StopWaiting();
+            ScreenTextHelper.Clear();
+
+            var encounterWindows = UiManager.Instance.encounterWindows;
+            if (encounterWindows.encounterInProgress)
+            {
+                encounterService.IsReleasing = true;
+                try
+                {
+                    encounterWindows.RewardFinished();
+                }
+                finally
+                {
+                    encounterService.IsReleasing = false;
+                }
             }
             else
             {
-                encounterService.ClearClosedEncounters();
                 MyTime.Unpause();
             }
             //EncounterWindows.A_WindowClosed.Invoke();
