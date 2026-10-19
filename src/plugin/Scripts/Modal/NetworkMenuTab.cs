@@ -44,6 +44,7 @@ namespace MegabonkTogether.Scripts
         private CustomButton sharedExpToggleLeftButton;
         private CustomButton sharedExpToggleRightButton;
         private TextMeshProUGUI sharedExpToggleStatusText;
+        private readonly System.Collections.Generic.List<GameObject> partySettingRows = [];
 
         protected void Awake()
         {
@@ -163,7 +164,7 @@ namespace MegabonkTogether.Scripts
             rectTransform.anchorMin = new Vector2(0.5f, 0.6f);
             rectTransform.anchorMax = new Vector2(0.5f, 0.6f);
             rectTransform.pivot = new Vector2(0.5f, 0.5f);
-            rectTransform.anchoredPosition = new Vector2(0, 25);
+            rectTransform.anchoredPosition = new Vector2(-400, 25);
             rectTransform.sizeDelta = new Vector2(700, 60);
 
             var textComponents = Il2CppFindHelper.RuntimeGetComponentsInChildren<TextMeshProUGUI>(saveToggleSetting);
@@ -256,7 +257,7 @@ namespace MegabonkTogether.Scripts
             rectTransform.anchorMin = new Vector2(0.5f, 0.5f);
             rectTransform.anchorMax = new Vector2(0.5f, 0.5f);
             rectTransform.pivot = new Vector2(0.5f, 0.5f);
-            rectTransform.anchoredPosition = new Vector2(0, -50);
+            rectTransform.anchoredPosition = new Vector2(-400, -50);
             rectTransform.sizeDelta = new Vector2(700, 60);
 
             var textComponents = Il2CppFindHelper.RuntimeGetComponentsInChildren<TextMeshProUGUI>(sharedExpToggleSetting);
@@ -338,6 +339,121 @@ namespace MegabonkTogether.Scripts
             }
         }
 
+        /// <summary>
+        /// Party rules (host settings, apply to everyone), right column of the netplay options
+        /// </summary>
+        private void CreatePartySettings()
+        {
+            const float x = 400f;
+            var y = 150f;
+
+            CreateCycleSetting("Reward pause\nParty: everyone pauses, Own: no pause", new Vector2(x, y),
+                () => ModConfig.RewardPauseMode.Value.ToString(),
+                step => ModConfig.RewardPauseMode.Value = ModConfig.RewardPauseMode.Value == Common.Messages.GameNetworkMessages.RewardPauseMode.Party
+                    ? Common.Messages.GameNetworkMessages.RewardPauseMode.Own
+                    : Common.Messages.GameNetworkMessages.RewardPauseMode.Party);
+
+            CreateCycleSetting("Downed state\nA teammate can revive you", new Vector2(x, y -= 60f),
+                () => ModConfig.DownedEnabled.Value ? "ON" : "OFF",
+                step => ModConfig.DownedEnabled.Value = !ModConfig.DownedEnabled.Value);
+
+            CreateCycleSetting("Team meter\nKill together for a team buff", new Vector2(x, y -= 60f),
+                () => ModConfig.TeamMeterEnabled.Value ? "ON" : "OFF",
+                step => ModConfig.TeamMeterEnabled.Value = !ModConfig.TeamMeterEnabled.Value);
+
+            CreateCycleSetting("Coop challenges\nRewarded with chests", new Vector2(x, y -= 60f),
+                () => ModConfig.ChallengesEnabled.Value ? "ON" : "OFF",
+                step => ModConfig.ChallengesEnabled.Value = !ModConfig.ChallengesEnabled.Value);
+
+            var statModes = (Common.Messages.GameNetworkMessages.PartyStatMode[])System.Enum.GetValues(typeof(Common.Messages.GameNetworkMessages.PartyStatMode));
+            CreateCycleSetting("Party luck/difficulty\nHow players' values combine", new Vector2(x, y -= 60f),
+                () => ModConfig.PartyStatMode.Value.ToString(),
+                step => ModConfig.PartyStatMode.Value = statModes[(System.Array.IndexOf(statModes, ModConfig.PartyStatMode.Value) + step + statModes.Length) % statModes.Length]);
+
+            // One modifier from the menu, several through the config file
+            var modifiers = new[]
+            {
+                Common.Messages.GameNetworkMessages.RunModifier.None, Common.Messages.GameNetworkMessages.RunModifier.GlassCannon,
+                Common.Messages.GameNetworkMessages.RunModifier.Horde, Common.Messages.GameNetworkMessages.RunModifier.ThickSkinned,
+                Common.Messages.GameNetworkMessages.RunModifier.Frenzy, Common.Messages.GameNetworkMessages.RunModifier.Lucky,
+                Common.Messages.GameNetworkMessages.RunModifier.Poverty,
+            };
+            CreateCycleSetting("Run modifier\nHost picks, applies to everyone", new Vector2(x, y -= 60f),
+                () => ModConfig.RunModifiers.Value.ToString(),
+                step => ModConfig.RunModifiers.Value = modifiers[(System.Math.Max(0, System.Array.IndexOf(modifiers, ModConfig.RunModifiers.Value)) + step + modifiers.Length) % modifiers.Length]);
+        }
+
+        /// <summary>
+        /// A settings row (the game's enum setting: label, left/right arrows, value) bound to a config value
+        /// </summary>
+        private void CreateCycleSetting(string label, Vector2 position, System.Func<string> getValue, System.Action<int> step)
+        {
+            var settings = mainMenu.settings.GetComponent<Settings>();
+            var row = GameObject.Instantiate(settings.GetSettingPrefab(SettingType.Enum), panel.transform);
+
+            var rectTransform = row.GetComponent<RectTransform>();
+            rectTransform.anchorMin = new Vector2(0.5f, 0.5f);
+            rectTransform.anchorMax = new Vector2(0.5f, 0.5f);
+            rectTransform.pivot = new Vector2(0.5f, 0.5f);
+            rectTransform.anchoredPosition = position;
+            rectTransform.sizeDelta = new Vector2(700, 55);
+
+            TextMeshProUGUI valueText = null;
+            foreach (var textComp in Il2CppFindHelper.RuntimeGetComponentsInChildren<TextMeshProUGUI>(row))
+            {
+                if (textComp.name.StartsWith("Text"))
+                {
+                    textComp.text = label;
+                    textComp.fontSize = 18;
+                    textComp.enableWordWrapping = false;
+                }
+                else if (textComp.name.StartsWith("StatusText"))
+                {
+                    valueText = textComp;
+                    valueText.gameObject.SetActive(true);
+                }
+            }
+
+            void Refresh()
+            {
+                if (valueText != null)
+                {
+                    valueText.text = getValue();
+                    valueText.color = Color.white;
+                }
+            }
+
+            void OnArrow(int direction)
+            {
+                AudioManager.Instance.PlaySfx(AudioManager.Instance.uiClick.sounds[0]);
+                step(direction);
+                ModConfig.Save();
+                Refresh();
+            }
+
+            foreach (var btn in Il2CppFindHelper.RuntimeGetComponentsInChildren<UnityEngine.UI.Button>(row))
+            {
+                if (btn.name != "B_Left" && btn.name != "B_Right")
+                {
+                    continue;
+                }
+
+                var origButton = btn.GetComponent<MyButtonNormal>();
+                if (origButton != null)
+                {
+                    UnityEngine.Object.DestroyImmediate(origButton);
+                }
+
+                btn.onClick = new();
+                var direction = btn.name == "B_Left" ? -1 : 1;
+                btn.gameObject.AddComponent<CustomButton>().SetOnClickAction(() => OnArrow(direction));
+            }
+
+            Refresh();
+            row.SetActive(false);
+            partySettingRows.Add(row);
+        }
+
         private void CreateNetplayOptionsUI()
         {
             netplayOptionsTitle = new GameObject("NetplayOptionsTitle");
@@ -360,6 +476,7 @@ namespace MegabonkTogether.Scripts
 
             CreateSaveToggle();
             CreateSharedExpToggle();
+            CreatePartySettings();
 
             var backButtonObj = GameObject.Instantiate(mainMenu.btnPlay.gameObject);
             backButtonObj.transform.SetParent(panel.transform, false);
@@ -991,6 +1108,10 @@ namespace MegabonkTogether.Scripts
             netplayOptionsTitle.SetActive(isVisible);
             saveToggleSetting.SetActive(isVisible);
             sharedExpToggleSetting.SetActive(isVisible);
+            foreach (var row in partySettingRows)
+            {
+                row.SetActive(isVisible);
+            }
             netplayOptionsBackButton.gameObject.SetActive(isVisible);
         }
 
