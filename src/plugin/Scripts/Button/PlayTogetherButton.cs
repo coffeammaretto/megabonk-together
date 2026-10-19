@@ -14,6 +14,7 @@ namespace MegabonkTogether.Scripts.Button
 
         private void OnPlayTogetherClick()
         {
+            Plugin.Log.LogInfo($"[DEBUG] TOGETHER clicked: {System.Environment.StackTrace}");
             //ButtonManager.selectedButton2 = this;
 
             var networkMenuObj = new GameObject("NetworkMenuTab");

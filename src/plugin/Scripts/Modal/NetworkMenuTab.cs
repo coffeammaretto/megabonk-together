@@ -164,7 +164,7 @@ namespace MegabonkTogether.Scripts
             rectTransform.anchorMin = new Vector2(0.5f, 0.6f);
             rectTransform.anchorMax = new Vector2(0.5f, 0.6f);
             rectTransform.pivot = new Vector2(0.5f, 0.5f);
-            rectTransform.anchoredPosition = new Vector2(-400, 25);
+            rectTransform.anchoredPosition = new Vector2(-360, 25);
             rectTransform.sizeDelta = new Vector2(700, 60);
 
             var textComponents = Il2CppFindHelper.RuntimeGetComponentsInChildren<TextMeshProUGUI>(saveToggleSetting);
@@ -257,7 +257,7 @@ namespace MegabonkTogether.Scripts
             rectTransform.anchorMin = new Vector2(0.5f, 0.5f);
             rectTransform.anchorMax = new Vector2(0.5f, 0.5f);
             rectTransform.pivot = new Vector2(0.5f, 0.5f);
-            rectTransform.anchoredPosition = new Vector2(-400, -50);
+            rectTransform.anchoredPosition = new Vector2(-360, -50);
             rectTransform.sizeDelta = new Vector2(700, 60);
 
             var textComponents = Il2CppFindHelper.RuntimeGetComponentsInChildren<TextMeshProUGUI>(sharedExpToggleSetting);
@@ -344,8 +344,8 @@ namespace MegabonkTogether.Scripts
         /// </summary>
         private void CreatePartySettings()
         {
-            const float x = 400f;
-            var y = 150f;
+            const float x = 360f;
+            var y = 200f;
 
             CreateCycleSetting("Reward pause\nParty: everyone pauses, Own: no pause", new Vector2(x, y),
                 () => ModConfig.RewardPauseMode.Value.ToString(),
@@ -1047,6 +1047,7 @@ namespace MegabonkTogether.Scripts
 
         private void OnNetplayOptionsClicked()
         {
+            Plugin.Log.LogInfo($"[DEBUG] Netplay options clicked: {System.Environment.StackTrace}");
             AudioManager.Instance.PlaySfx(AudioManager.Instance.uiSelect.sounds[0]);
 
             UpdateModalContents(false);
@@ -1105,6 +1106,8 @@ namespace MegabonkTogether.Scripts
 
         private void UpdateNetplayOptionsUI(bool isVisible)
         {
+            // Two columns of settings: wider and taller panel while the options are shown
+            panel.GetComponent<RectTransform>().sizeDelta = isVisible ? new Vector2(1460, 820) : PanelSize;
             netplayOptionsTitle.SetActive(isVisible);
             saveToggleSetting.SetActive(isVisible);
             sharedExpToggleSetting.SetActive(isVisible);
