@@ -1047,7 +1047,6 @@ namespace MegabonkTogether.Scripts
 
         private void OnNetplayOptionsClicked()
         {
-            Plugin.Log.LogInfo($"[DEBUG] Netplay options clicked: {System.Environment.StackTrace}");
             AudioManager.Instance.PlaySfx(AudioManager.Instance.uiSelect.sounds[0]);
 
             UpdateModalContents(false);
