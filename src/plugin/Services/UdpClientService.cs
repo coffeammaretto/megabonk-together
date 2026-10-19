@@ -724,6 +724,9 @@ namespace MegabonkTogether.Services
                     case EncounterPaused encounterPaused:
                         EventManager.OnEncounterPaused(encounterPaused);
                         break;
+                    case PlayerStatsChanged playerStatsChanged:
+                        EventManager.OnPlayerStatsChanged(playerStatsChanged);
+                        break;
                     default:
                         Plugin.Log.LogWarning($"Unknown message type received. message={message}");
                         break;
@@ -982,6 +985,10 @@ namespace MegabonkTogether.Services
                     case AddXp addXp:
                         EventManager.OnAddXp(addXp);
                         SendToAllClientsExcept(netPeerId, addXp.OwnerId, addXp);
+                        break;
+                    case PlayerStatsChanged playerStatsChanged:
+                        EventManager.OnPlayerStatsChanged(playerStatsChanged);
+                        SendToAllClientsExcept(netPeerId, playerStatsChanged.OwnerId, playerStatsChanged);
                         break;
                     case EncounterStateChanged encounterStateChanged: //Waiting players are released by SynchronizationService.UpdateEncounterSync
                         encounterService.SetRemoteState(encounterStateChanged.OwnerId, encounterStateChanged.State, encounterStateChanged.CloseSeq);
