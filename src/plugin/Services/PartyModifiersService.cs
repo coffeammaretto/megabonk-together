@@ -122,9 +122,9 @@ namespace MegabonkTogether.Services
 
             if (modifiers.HasFlag(RunModifier.ThickSkinned))
             {
-                wanted["ThickSkinnedLuck"] = (EStat.Luck, EStatModifyType.Flat, 0.25f);
-                if (isHost)
+                if (isHost) //Luck is combined across the party: added once, on the host
                 {
+                    wanted["ThickSkinnedLuck"] = (EStat.Luck, EStatModifyType.Flat, 0.25f);
                     wanted["ThickSkinnedEnemyHp"] = (EStat.EnemyHpMultiplier, EStatModifyType.Addition, 1f);
                 }
             }
@@ -140,9 +140,9 @@ namespace MegabonkTogether.Services
 
             if (modifiers.HasFlag(RunModifier.Lucky))
             {
-                wanted["LuckyLuck"] = (EStat.Luck, EStatModifyType.Flat, 0.5f);
-                if (isHost)
+                if (isHost) //Luck and difficulty are combined across the party: added once, on the host
                 {
+                    wanted["LuckyLuck"] = (EStat.Luck, EStatModifyType.Flat, 0.5f);
                     wanted["LuckyDifficulty"] = (EStat.Difficulty, EStatModifyType.Flat, 0.3f);
                 }
             }
@@ -158,7 +158,8 @@ namespace MegabonkTogether.Services
         {
             foreach (var (key, modifier) in wanted)
             {
-                if (applied.TryGetValue(key, out var current) && current == modifier)
+                if (applied.TryGetValue(key, out var current) && current == modifier
+                    && statInventory.movingStats != null && statInventory.movingStats.ContainsKey(PREFIX + key)) //The game may rebuild its moving stats
                 {
                     continue;
                 }

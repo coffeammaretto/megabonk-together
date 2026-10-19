@@ -75,7 +75,7 @@ namespace MegabonkTogether.Services
             }
 
             points += 1f;
-            var required = settings.TeamMeterKillsToFill * Mathf.Pow(Math.Max(1f, settings.TeamMeterGrowth), activations);
+            var required = Math.Max(1f, settings.TeamMeterKillsToFill) * Mathf.Pow(Math.Max(1f, settings.TeamMeterGrowth), activations);
             progress = Mathf.Clamp01(points / required);
 
             if (points >= required)
@@ -92,6 +92,11 @@ namespace MegabonkTogether.Services
 
         public void Tick()
         {
+            if (buffSecondsLeft > 0f)
+            {
+                buffSecondsLeft = Math.Max(0f, buffSecondsLeft - Time.deltaTime); //Game time: stops with the reward pause
+            }
+
             var settings = partySettingsService.Current;
             var isActive = settings.TeamMeterEnabled && playerManagerService.GetAllPlayers().Count() > 1;
             if (!isActive)
@@ -102,10 +107,6 @@ namespace MegabonkTogether.Services
 
             try
             {
-                if (buffSecondsLeft > 0f)
-                {
-                    buffSecondsLeft = Math.Max(0f, buffSecondsLeft - Time.deltaTime); //Game time: stops with the reward pause
-                }
 
                 if (IsHost())
                 {

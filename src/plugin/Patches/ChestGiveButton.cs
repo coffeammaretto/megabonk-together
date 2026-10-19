@@ -27,6 +27,21 @@ namespace MegabonkTogether.Patches
         private static GameObject giveButton;
         private static TextMeshProUGUI giveButtonText;
         private static ChestWindowUi currentWindow;
+        private static uint? currentRecipientId;
+
+        /// <summary>
+        /// A new chest: hide the button until its item is shown
+        /// </summary>
+        [HarmonyPrefix]
+        [HarmonyPatch(nameof(ChestWindowUi.Open))]
+        public static void Open_Prefix()
+        {
+            currentRecipientId = null;
+            if (giveButton != null)
+            {
+                giveButton.SetActive(false);
+            }
+        }
 
         public static bool Prepare(MethodBase original)
         {
@@ -58,6 +73,7 @@ namespace MegabonkTogether.Patches
                 }
 
                 currentWindow = __instance;
+                currentRecipientId = recipient.ConnectionId;
                 giveButton.SetActive(true);
                 if (giveButtonText != null)
                 {
@@ -127,12 +143,13 @@ namespace MegabonkTogether.Patches
                 return;
             }
 
-            var recipient = GetRecipient();
+            var recipient = currentRecipientId.HasValue ? playerManagerService.GetPlayer(currentRecipientId.Value) : null;
             var localPlayer = playerManagerService.GetLocalPlayer();
             if (recipient == null || localPlayer == null)
             {
                 return;
             }
+            currentRecipientId = null;
 
             var item = currentWindow.itemData.eItem;
             IGameNetworkMessage message = new GiveItem

@@ -93,16 +93,17 @@ namespace MegabonkTogether.Scripts
 
                 if (GameManager.Instance == null || GameManager.Instance.player == null || GameManager.Instance.player.inventory == null) return;
 
-                synchronizationService.UpdateEncounterSync();
-                synchronizationService.RetryPendingInventoryReplays();
-                synchronizationService.CheckPeerModVersions();
-                partyStatsService?.Tick();
-                partyModifiersService?.Tick();
-                downedService?.Tick();
-                pingService?.Tick();
-                teamMeterService?.Tick();
-                challengeService?.Tick();
-                runStatsService?.Tick();
+                // Each feature on its own: one failing must not stop the player/enemy updates below
+                SafeTick(synchronizationService.UpdateEncounterSync);
+                SafeTick(synchronizationService.RetryPendingInventoryReplays);
+                SafeTick(synchronizationService.CheckPeerModVersions);
+                SafeTick(partyStatsService.Tick);
+                SafeTick(partyModifiersService.Tick);
+                SafeTick(downedService.Tick);
+                SafeTick(pingService.Tick);
+                SafeTick(teamMeterService.Tick);
+                SafeTick(challengeService.Tick);
+                SafeTick(runStatsService.Tick);
 
                 lobbyUpdateAccumulator += Time.deltaTime;
 
@@ -149,6 +150,18 @@ namespace MegabonkTogether.Scripts
             catch (System.Exception ex)
             {
                 Plugin.Log.LogError($"NetworkHandler Update error: {ex}");
+            }
+        }
+
+        private static void SafeTick(System.Action tick)
+        {
+            try
+            {
+                tick();
+            }
+            catch (System.Exception ex)
+            {
+                Plugin.Log.LogError($"{tick.Method.DeclaringType?.Name}.{tick.Method.Name} failed: {ex}");
             }
         }
 

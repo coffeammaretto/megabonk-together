@@ -236,7 +236,7 @@ namespace MegabonkTogether.Patches.Items
 
         public static void Postfix(PlayerInventory __instance, int amount)
         {
-            if (amount <= 0 || !ItemOwnership.IsNetplay)
+            if (amount <= 0 || !ItemOwnership.IsNetplay || ItemOwnership.IsInRemotePlayerContext()) //Blocked by the guard below
             {
                 return;
             }

@@ -1804,6 +1804,16 @@ namespace MegabonkTogether.Services
             Plugin.CAN_SEND_MESSAGES = true;
 
             var isHost = IsServerMode() ?? false;
+            if (isHost) //Kill reported by a client (its copy died first): count it like the host's own
+            {
+                ((ITeamMeterService)Plugin.Services.GetService(typeof(ITeamMeterService)))?.OnEnemyKilled(died.DiedByOwnerId);
+                GetRunStatsService()?.OnKill(died.DiedByOwnerId);
+                if (enemy.IsStageBoss() && !enemy.IsFinalBoss())
+                {
+                    GetChallengeService()?.OnStageBossKilled(enemy.transform.position);
+                }
+            }
+
             if (!isHost)
             {
                 if (playerManagerService.IsLocalConnectionId(died.DiedByOwnerId))
@@ -3227,8 +3237,13 @@ namespace MegabonkTogether.Services
             }
 
 
-            var rand = UnityEngine.Random.Range(0, playerManagerService.GetAllPlayersAlive().Count());
-            var randomPlayer = playerManagerService.GetAllPlayersAlive().ElementAt(rand);
+            var targets = playerManagerService.GetAllPlayersAlive().ToList();
+            if (targets.Count == 0)
+            {
+                targets = playerManagerService.GetAllPlayers().ToList(); //Everyone dead or downed
+            }
+            var rand = UnityEngine.Random.Range(0, targets.Count);
+            var randomPlayer = targets.ElementAt(rand);
             DynamicData.For(enemy).Set("targetId", randomPlayer.ConnectionId); //Random target
 
             IGameNetworkMessage message = new SpawnedEnemySpecialAttack

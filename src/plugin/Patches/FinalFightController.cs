@@ -108,7 +108,11 @@ namespace MegabonkTogether.Patches
             var isServer = synchronizationService.IsServerMode() ?? false;
             if (isServer)
             {
-                var allPlayers = playerManagerService.GetAllPlayersAlive();
+                var allPlayers = playerManagerService.GetAllPlayersAlive().ToList();
+                if (allPlayers.Count == 0)
+                {
+                    allPlayers = playerManagerService.GetAllPlayers().ToList(); //Everyone dead or downed
+                }
                 var randomIndex = UnityEngine.Random.Range(0, allPlayers.Count());
                 var targetPlayer = allPlayers.ElementAt(randomIndex);
 
@@ -133,7 +137,11 @@ namespace MegabonkTogether.Patches
             var isServer = synchronizationService.IsServerMode() ?? false;
             if (isServer)
             {
-                var allPlayers = playerManagerService.GetAllPlayersAlive();
+                var allPlayers = playerManagerService.GetAllPlayersAlive().ToList();
+                if (allPlayers.Count == 0)
+                {
+                    allPlayers = playerManagerService.GetAllPlayers().ToList(); //Everyone dead or downed
+                }
                 var randomIndex = UnityEngine.Random.Range(0, allPlayers.Count());
                 var targetPlayer = allPlayers.ElementAt(randomIndex);
 
@@ -158,7 +166,11 @@ namespace MegabonkTogether.Patches
             var isServer = synchronizationService.IsServerMode() ?? false;
             if (isServer)
             {
-                var allPlayers = playerManagerService.GetAllPlayersAlive();
+                var allPlayers = playerManagerService.GetAllPlayersAlive().ToList();
+                if (allPlayers.Count == 0)
+                {
+                    allPlayers = playerManagerService.GetAllPlayers().ToList(); //Everyone dead or downed
+                }
                 var randomIndex = UnityEngine.Random.Range(0, allPlayers.Count());
                 var targetPlayer = allPlayers.ElementAt(randomIndex);
 
