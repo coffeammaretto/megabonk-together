@@ -27,7 +27,7 @@ namespace MegabonkTogether.Patches.Enemies
 
             var id = DynamicData.For(__instance.enemy).Get<uint?>("targetId");
 
-            if (id.HasValue && playerManagerService.IsDead(id.Value)) //Never chase a dead player's hidden body
+            if (id.HasValue && (playerManagerService.IsDead(id.Value) || playerManagerService.IsDowned(id.Value))) //Never chase a dead or downed player
             {
                 var aliveTarget = playerManagerService.GetRandomPlayerAliveConnectionId();
                 if (aliveTarget.HasValue)

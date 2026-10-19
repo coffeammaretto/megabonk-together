@@ -18,7 +18,7 @@ namespace MegabonkTogether.Services
         public void Reset();
     }
 
-    internal class PartyModifiersService(IUdpClientService udpClientService, IPartySettingsService partySettingsService) : IPartyModifiersService
+    internal class PartyModifiersService(IUdpClientService udpClientService, IPartySettingsService partySettingsService, IDownedService downedService) : IPartyModifiersService
     {
         private const float TICK_INTERVAL = 0.5f;
         private const string PREFIX = "MegabonkTogether_Party_";
@@ -67,6 +67,11 @@ namespace MegabonkTogether.Services
             if (isHost && Mathf.Abs(settings.EnemyAmountMultiplier - 1f) > 0.001f)
             {
                 wanted["EnemyAmount"] = (EStat.EnemyAmountMultiplier, EStatModifyType.Addition, settings.EnemyAmountMultiplier - 1f);
+            }
+
+            if (downedService.IsLocalDowned)
+            {
+                wanted["Downed"] = (EStat.MoveSpeedMultiplier, EStatModifyType.Addition, -0.6f);
             }
 
             return wanted;

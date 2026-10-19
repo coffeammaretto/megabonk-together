@@ -739,6 +739,9 @@ namespace MegabonkTogether.Services
                     case PartySettings partySettings:
                         EventManager.OnPartySettings(partySettings);
                         break;
+                    case PlayerDownedChanged playerDownedChanged:
+                        EventManager.OnPlayerDownedChanged(playerDownedChanged);
+                        break;
                     default:
                         Plugin.Log.LogWarning($"Unknown message type received. message={message}");
                         break;
@@ -1005,6 +1008,10 @@ namespace MegabonkTogether.Services
                     case ModVersionInfo modVersionInfo:
                         EventManager.OnModVersionInfo(modVersionInfo);
                         SendToAllClientsExcept(netPeerId, modVersionInfo.OwnerId, modVersionInfo);
+                        break;
+                    case PlayerDownedChanged playerDownedChanged:
+                        EventManager.OnPlayerDownedChanged(playerDownedChanged);
+                        SendToAllClientsExcept(netPeerId, playerDownedChanged.PlayerId, playerDownedChanged);
                         break;
                     case EncounterStateChanged encounterStateChanged: //Waiting players are released by SynchronizationService.UpdateEncounterSync
                         encounterService.SetRemoteState(encounterStateChanged.OwnerId, encounterStateChanged.State, encounterStateChanged.CloseSeq);

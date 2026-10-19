@@ -28,6 +28,11 @@ namespace MegabonkTogether.Configuration
         public static ConfigEntry<float> EnemyHpPerExtraPlayer { get; private set; }
         public static ConfigEntry<float> EnemyAmountMultiplier { get; private set; }
         public static ConfigEntry<RewardPauseMode> RewardPauseMode { get; private set; }
+        public static ConfigEntry<bool> DownedEnabled { get; private set; }
+        public static ConfigEntry<float> DownedBleedoutSeconds { get; private set; }
+        public static ConfigEntry<float> DownedReviveSeconds { get; private set; }
+        public static ConfigEntry<float> DownedReviveRadius { get; private set; }
+        public static ConfigEntry<float> DownedReviveHpFraction { get; private set; }
 
         public static void Initialize(ConfigFile config)
         {
@@ -105,6 +110,16 @@ namespace MegabonkTogether.Configuration
                 "Multiplier on the amount of enemies (1 = unchanged).");
             RewardPauseMode = config.Bind(party, "RewardPauseMode", Common.Messages.GameNetworkMessages.RewardPauseMode.Party,
                 "Shared experience: Party = everyone pauses while someone picks a reward, Own = pick without pausing while invulnerable, the others keep playing.");
+            DownedEnabled = config.Bind(party, "DownedEnabled", true,
+                "Lethal damage downs a player instead of killing it: it bleeds out and a teammate standing next to it revives it.");
+            DownedBleedoutSeconds = config.Bind(party, "DownedBleedoutSeconds", 25f,
+                "Seconds a downed player has before dying.");
+            DownedReviveSeconds = config.Bind(party, "DownedReviveSeconds", 3f,
+                "Seconds a teammate must stay next to a downed player to revive it.");
+            DownedReviveRadius = config.Bind(party, "DownedReviveRadius", 4f,
+                "How close (meters) a teammate must be to revive a downed player.");
+            DownedReviveHpFraction = config.Bind(party, "DownedReviveHpFraction", 0.3f,
+                "Fraction of max HP a revived player gets back.");
         }
 
         public static PartySettings ToPartySettings()
@@ -119,6 +134,11 @@ namespace MegabonkTogether.Configuration
                 EnemyHpPerExtraPlayer = EnemyHpPerExtraPlayer.Value,
                 EnemyAmountMultiplier = EnemyAmountMultiplier.Value,
                 RewardPauseMode = RewardPauseMode.Value,
+                DownedEnabled = DownedEnabled.Value,
+                DownedBleedoutSeconds = DownedBleedoutSeconds.Value,
+                DownedReviveSeconds = DownedReviveSeconds.Value,
+                DownedReviveRadius = DownedReviveRadius.Value,
+                DownedReviveHpFraction = DownedReviveHpFraction.Value,
             };
         }
 

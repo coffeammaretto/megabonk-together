@@ -8,6 +8,7 @@ namespace MegabonkTogether.Patches.Inventories
     internal static class PlayerInventoryPatches
     {
         private static readonly ISynchronizationService synchronizationService = Plugin.Services.GetService<ISynchronizationService>();
+        private static readonly IDownedService downedService = Plugin.Services.GetService<IDownedService>();
 
         /// <summary>
         /// Prevent inventory tick (spawning projectiles) when dead. Only tick status effects.
@@ -21,7 +22,7 @@ namespace MegabonkTogether.Patches.Inventories
                 return true;
             }
 
-            if (GameManager.Instance.player.inventory != null && __instance == GameManager.Instance.player.inventory && GameManager.Instance.player.IsDead())
+            if (GameManager.Instance.player.inventory != null && __instance == GameManager.Instance.player.inventory && (GameManager.Instance.player.IsDead() || downedService.IsLocalDowned))
             {
                 __instance.statusEffects.Tick();
                 return false;

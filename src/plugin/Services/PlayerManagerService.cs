@@ -60,6 +60,12 @@ namespace MegabonkTogether.Services
         public void MarkDead(uint connectionId);
         public void MarkAlive(uint connectionId);
         public bool IsDead(uint connectionId);
+
+        /// <summary>
+        /// Downed players bleed out until revived: not targeted by enemies, not counted as alive
+        /// </summary>
+        public void SetDowned(uint connectionId, bool downed);
+        public bool IsDowned(uint connectionId);
         public IEnumerable<(uint, Rigidbody)> GetConnectionIdsAndRigidBodies();
         public void Disconnect(uint connectionId);
         public void Reset();
@@ -81,6 +87,7 @@ namespace MegabonkTogether.Services
     {
         private readonly ConcurrentDictionary<uint, Player> players = new();
         private readonly ConcurrentDictionary<uint, byte> deadPlayers = new();
+        private readonly ConcurrentDictionary<uint, byte> downedPlayers = new();
         private readonly ManualLogSource logger;
         private ConcurrentDictionary<uint, NetPlayer> spawnedPlayers = [];
         private uint localConnectionId = 0;
@@ -141,7 +148,24 @@ namespace MegabonkTogether.Services
 
         public IEnumerable<Player> GetAllPlayersAlive()
         {
-            return [.. players.Where(p => p.Value.Hp > 0 && !deadPlayers.ContainsKey(p.Key)).Select(p => p.Value)];
+            return [.. players.Where(p => p.Value.Hp > 0 && !deadPlayers.ContainsKey(p.Key) && !downedPlayers.ContainsKey(p.Key)).Select(p => p.Value)];
+        }
+
+        public void SetDowned(uint connectionId, bool downed)
+        {
+            if (downed)
+            {
+                downedPlayers.TryAdd(connectionId, 0);
+            }
+            else
+            {
+                downedPlayers.TryRemove(connectionId, out _);
+            }
+        }
+
+        public bool IsDowned(uint connectionId)
+        {
+            return downedPlayers.ContainsKey(connectionId);
         }
 
         public void MarkDead(uint connectionId)
@@ -167,7 +191,7 @@ namespace MegabonkTogether.Services
 
         public uint? GetRandomPlayerAliveConnectionId()
         {
-            var alivePlayers = players.Where(p => p.Value.Hp > 0 && !deadPlayers.ContainsKey(p.Key)).ToList();
+            var alivePlayers = players.Where(p => p.Value.Hp > 0 && !deadPlayers.ContainsKey(p.Key) && !downedPlayers.ContainsKey(p.Key)).ToList();
 
             if (alivePlayers.Count == 0)
             {
@@ -491,6 +515,7 @@ namespace MegabonkTogether.Services
             getNetplayerPositionQueue.Clear();
             getNetplayerPositionRequestQueue.Clear();
             deadPlayers.Clear(); //Everyone starts the next stage alive, as the HP based check did
+            downedPlayers.Clear();
 
         }
 
@@ -536,6 +561,7 @@ namespace MegabonkTogether.Services
         {
             players.Clear();
             deadPlayers.Clear();
+            downedPlayers.Clear();
             foreach (var spawnedPlayer in spawnedPlayers.Values.ToList())
             {
                 try

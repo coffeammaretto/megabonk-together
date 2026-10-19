@@ -23,6 +23,13 @@ namespace MegabonkTogether.Common.Messages.GameNetworkMessages
 
         // Reward windows
         public RewardPauseMode RewardPauseMode { get; set; } = RewardPauseMode.Party;
+
+        // Downed state
+        public bool DownedEnabled { get; set; } = true;
+        public float DownedBleedoutSeconds { get; set; } = 25f;
+        public float DownedReviveSeconds { get; set; } = 3f;
+        public float DownedReviveRadius { get; set; } = 4f;
+        public float DownedReviveHpFraction { get; set; } = 0.3f;
     }
 
     public enum PartyStatMode : byte

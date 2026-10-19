@@ -117,7 +117,7 @@ namespace MegabonkTogether.Scripts.NetPlayer
                 return;
             }
 
-            if (isDead)
+            if (isDead || playerManagerService.IsDowned(connectionId))
             {
                 return;
             }
@@ -486,9 +486,12 @@ namespace MegabonkTogether.Scripts.NetPlayer
                 Plugin.Log.LogWarning($"Cannot update nameplate text: Player not found for connectionId {connectionId}");
                 return;
             }
-            if (nameplateText.text != player.Name)
+            var isDowned = playerManagerService.IsDowned(connectionId);
+            var text = isDowned ? $"{player.Name} - DOWN" : player.Name;
+            if (nameplateText.text != text)
             {
-                nameplateText.text = player.Name;
+                nameplateText.text = text;
+                nameplateText.color = isDowned ? Color.red : Color.white;
             }
         }
 

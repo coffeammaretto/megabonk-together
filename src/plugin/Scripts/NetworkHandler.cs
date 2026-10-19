@@ -45,6 +45,7 @@ namespace MegabonkTogether.Scripts
         private IPartyStatsService partyStatsService;
         private IPartySettingsService partySettingsService;
         private IPartyModifiersService partyModifiersService;
+        private IDownedService downedService;
 
         public bool? IsConnectedToMatchMaker => isConnectedToMatchMaker;
         public string MatchMakerFailureMessage => matchMakerFailureMessage;
@@ -93,6 +94,7 @@ namespace MegabonkTogether.Scripts
                 synchronizationService.CheckPeerModVersions();
                 partyStatsService?.Tick();
                 partyModifiersService?.Tick();
+                downedService?.Tick();
 
                 lobbyUpdateAccumulator += Time.deltaTime;
 
@@ -219,6 +221,7 @@ namespace MegabonkTogether.Scripts
             partyStatsService?.Reset();
             partySettingsService?.Reset();
             partyModifiersService?.Reset();
+            downedService?.Reset();
 
             if (websocketClientService != null)
             {
@@ -263,6 +266,7 @@ namespace MegabonkTogether.Scripts
                 partyStatsService = Plugin.Services.GetRequiredService<IPartyStatsService>();
                 partySettingsService = Plugin.Services.GetRequiredService<IPartySettingsService>();
                 partyModifiersService = Plugin.Services.GetRequiredService<IPartyModifiersService>();
+                downedService = Plugin.Services.GetRequiredService<IDownedService>();
                 if (Plugin.Instance.Mode.Mode == Common.Models.NetworkModeType.Random)
                 {
                     isHost = synchronizationService.IsServerMode() ?? false;

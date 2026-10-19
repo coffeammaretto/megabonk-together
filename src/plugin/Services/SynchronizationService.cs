@@ -814,6 +814,7 @@ namespace MegabonkTogether.Services
                 ScreenTextHelper.Clear();
             }
             encounterService.ResetForNextLevel();
+            ((IDownedService)Plugin.Services.GetService(typeof(IDownedService)))?.ResetForNextLevel();
             wasAnyoneChoosing = false;
             specificDesertGraves.Clear();
             currentCoffin = null;
