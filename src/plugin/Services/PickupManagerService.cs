@@ -22,6 +22,8 @@ namespace MegabonkTogether.Services
     internal class PickupManagerService : IPickupManagerService
     {
         private readonly ConcurrentDictionary<uint, Pickup> spawnedPickups = [];
+        // Pickups are pooled by the game: index by Unity instance id so a reused object maps to its current id only
+        private readonly ConcurrentDictionary<int, uint> pickupIdsByInstanceId = [];
         private uint currentPickupId = 0; //TODO: concurrency?
 
         public IEnumerable<PickupModel> GetAllPickups()
@@ -51,6 +53,8 @@ namespace MegabonkTogether.Services
                 return 0;
             }
 
+            TrackInstanceId(currentPickupId, pickup);
+
             return currentPickupId;
         }
 
@@ -62,12 +66,41 @@ namespace MegabonkTogether.Services
             if (!spawnedPickups.TryAdd(pickupId, pickup))
             {
                 Plugin.Log.LogWarning($"Attempted to add an pickup that already exists. PickupId: {pickupId}");
+                return;
             }
+
+            TrackInstanceId(pickupId, pickup);
+        }
+
+        /// <summary>
+        /// Map the pickup object to its id. If the pooled object was still registered under an older id,
+        /// that pickup is gone (the object got reused), so drop the stale entry instead of letting it resolve to the wrong id.
+        /// </summary>
+        private void TrackInstanceId(uint pickupId, Pickup pickup)
+        {
+            var instanceId = pickup.GetInstanceID();
+
+            if (pickupIdsByInstanceId.TryGetValue(instanceId, out var previousId)
+                && previousId != pickupId
+                && spawnedPickups.TryGetValue(previousId, out var previous)
+                && previous.GetInstanceID() == instanceId)
+            {
+                spawnedPickups.TryRemove(previousId, out _);
+            }
+
+            pickupIdsByInstanceId[instanceId] = pickupId;
         }
 
         public KeyValuePair<uint, Pickup> GetPickupByReference(Pickup pickup)
         {
-            return spawnedPickups.FirstOrDefault(kv => kv.Value == pickup);
+            if (pickup != null
+                && pickupIdsByInstanceId.TryGetValue(pickup.GetInstanceID(), out var pickupId)
+                && spawnedPickups.TryGetValue(pickupId, out var spawned))
+            {
+                return new KeyValuePair<uint, Pickup>(pickupId, spawned);
+            }
+
+            return default;
         }
 
         public Pickup GetSpawnedPickupById(uint id)
@@ -85,6 +118,8 @@ namespace MegabonkTogether.Services
             {
                 return;
             }
+
+            pickupIdsByInstanceId.TryRemove(new KeyValuePair<int, uint>(pickup.GetInstanceID(), id)); // Only if not already reused
 
             if (pickup.ePickup == EPickup.Xp) //Properly cleanup XP pickups
             {
@@ -105,6 +140,7 @@ namespace MegabonkTogether.Services
             currentPickupId = 0;
             //spawnedPickups.Select(kv => kv.Value).ToList().ForEach(p => GameObject.Destroy(p.gameObject));
             spawnedPickups.Clear();
+            pickupIdsByInstanceId.Clear();
         }
     }
 }
