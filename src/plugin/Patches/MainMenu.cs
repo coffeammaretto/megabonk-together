@@ -89,6 +89,12 @@ namespace MegabonkTogether.Patches
             {
                 hasCheckedChangelog = true;
 
+                // Steam is up by the main menu: fetch the interfaces once, logs the account
+                if (ModConfig.UseSteamNetworking.Value)
+                {
+                    Steam.SteamApi.Initialize();
+                }
+
                 if (string.IsNullOrEmpty(ModConfig.PreviousVersion.Value) && !autoUpdaterService.IsCustomBuild())
                 {
                     Plugin.Log.LogInfo("First time with changelog system detected");

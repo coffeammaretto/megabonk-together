@@ -8,6 +8,7 @@ using MegabonkTogether.Common.Messages.GameNetworkMessages;
 using MegabonkTogether.Common.Models;
 using MegabonkTogether.Extensions;
 using MegabonkTogether.Helpers;
+using MegabonkTogether.Steam;
 using MemoryPack;
 using System;
 using System.Collections.Concurrent;
@@ -70,6 +71,7 @@ namespace MegabonkTogether.Services
         public bool HasHandledHost();
         public void ResetHandledHost();
         public void RemovePeer(uint clientConnectionId);
+        public int GetLocalPort();
     }
     internal class UdpClientService(
             IPlayerManagerService playerManagerService,
@@ -78,6 +80,7 @@ namespace MegabonkTogether.Services
             IFinalBossOrbManagerService finalBossOrbManagerService,
             ISpawnedObjectManagerService spawnedObjectManagerService,
             IEncounterService encounterService,
+            ISteamTransport steamTransport,
             ManualLogSource logger) : IUdpClientService
     {
         private const int MAX_PACKET_SIZE_BYTES = 1000;
@@ -110,6 +113,8 @@ namespace MegabonkTogether.Services
         private bool hasTriedForceRelay = false;
 
         private const int POLL_INTERVAL_MS = 5;
+        private const int STEAM_CONNECT_TIMEOUT_MS = 15000;
+        private const int STEAM_MAX_CONNECT_ATTEMPTS = 30;
 
         private CancellationTokenSource pollingCancelationTokenSource;
 
@@ -205,7 +210,7 @@ namespace MegabonkTogether.Services
 
             listener.PeerConnectedEvent += peer =>
             {
-                if (peer.Address.ToString() != DnsHelper.ResolveDomainToIp(this.rdvServerHost))
+                if (this.rdvServerHost == null || peer.Address.ToString() != DnsHelper.ResolveDomainToIp(this.rdvServerHost))
                 {
                     gamePeers.TryAdd(peer.Id, peer);
                 }
@@ -1069,6 +1074,8 @@ namespace MegabonkTogether.Services
             gamePeersIntroduced.Clear();
             gamePeersIntroducedByRelay.Clear();
             hasTriedForceRelay = false;
+            pollingCancelationTokenSource?.Cancel();
+            pollingCancelationTokenSource = null;
 
             lock (relayPeerLock)
             {
@@ -1077,7 +1084,7 @@ namespace MegabonkTogether.Services
             }
             usesRelay.Clear();
 
-            netManager.DisconnectAll();
+            netManager?.DisconnectAll();
         }
 
         public void GameOver()
@@ -1178,14 +1185,34 @@ namespace MegabonkTogether.Services
 
             var uniqueToken = $"{role}|{hostId}|{selfConnectionId}";
 
-            Plugin.Log.LogInfo($"Sending NAT punch request to rendezvous server with token {uniqueToken}");
-
             this.rdvServerHost = rdvServerHost;
             this.rdvServerPort = (int)rdvServerPort;
 
-            netManager.NatPunchModule.SendNatIntroduceRequest(rdvServerHost, (int)rdvServerPort, uniqueToken);
+            if (steamTransport.IsActive)
+            {
+                // Steam carries the packets: the client connects to the local port standing for the host, the host waits
+                if (!isHost.Value)
+                {
+                    if (steamTransport.HostProxyPort == null)
+                    {
+                        Plugin.Log.LogError("Steam transport has no host port");
+                        return false;
+                    }
 
-            Plugin.Log.LogInfo("Waiting for NAT introductions and P2P connections...");
+                    netManager.MaxConnectAttempts = STEAM_MAX_CONNECT_ATTEMPTS;
+                    netManager.Connect("127.0.0.1", steamTransport.HostProxyPort.Value, "yourKey");
+                }
+
+                Plugin.Log.LogInfo("Waiting for P2P connections through Steam...");
+            }
+            else
+            {
+                Plugin.Log.LogInfo($"Sending NAT punch request to rendezvous server with token {uniqueToken}");
+
+                netManager.NatPunchModule.SendNatIntroduceRequest(rdvServerHost, (int)rdvServerPort, uniqueToken);
+
+                Plugin.Log.LogInfo("Waiting for NAT introductions and P2P connections...");
+            }
 
             natPunchComplete = new TaskCompletionSource<bool>();
 
@@ -1221,7 +1248,7 @@ namespace MegabonkTogether.Services
 
             isHandlingConnection = true;
 
-            var timeoutTask = Task.Delay(10000);
+            var timeoutTask = Task.Delay(steamTransport.IsActive ? STEAM_CONNECT_TIMEOUT_MS : 10000);
             var completedTask = await Task.WhenAny(natPunchComplete.Task, timeoutTask);
 
             if (token.IsCancellationRequested)
@@ -1239,7 +1266,9 @@ namespace MegabonkTogether.Services
             }
             else
             {
-                if (!hasTriedForceRelay && expectedPeerCount > 0)
+                initialPollCts.Cancel();
+
+                if (!hasTriedForceRelay && expectedPeerCount > 0 && !steamTransport.IsActive)
                 {
                     if (token.IsCancellationRequested)
                     {
@@ -1862,6 +1891,11 @@ namespace MegabonkTogether.Services
         public void ResetHandledHost()
         {
             hasHandledHost = false;
+        }
+
+        public int GetLocalPort()
+        {
+            return GAME_UDP_PORT;
         }
     }
 }

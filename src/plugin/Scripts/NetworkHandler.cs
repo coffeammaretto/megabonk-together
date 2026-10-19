@@ -214,7 +214,7 @@ namespace MegabonkTogether.Scripts
 
             try
             {
-                udpClientService?.Reset();
+                (udpClientService ?? Plugin.Services.GetRequiredService<IUdpClientService>()).Reset();
             }
             catch (System.Exception ex)
             {

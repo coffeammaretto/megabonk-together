@@ -140,7 +140,9 @@ namespace MegabonkTogether
             builder.ConfigureServices(services =>
             {
                 services.AddSingleton(Log);
-                services.AddSingleton<IWebsocketClientService, WebsocketClientService>();
+                services.AddSingleton<WebsocketClientService>();
+                services.AddSingleton<Steam.ISteamTransport, Steam.SteamTransport>();
+                services.AddSingleton<IWebsocketClientService, Steam.SteamMatchmakingService>();
 
                 services.AddSingleton<IUdpClientService, UdpClientService>();
                 services.AddSingleton<IPlayerManagerService, PlayerManagerService>();

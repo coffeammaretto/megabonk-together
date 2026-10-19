@@ -13,6 +13,7 @@ namespace MegabonkTogether.Configuration
         public static ConfigEntry<bool> CheckForUpdates { get; private set; }
         public static ConfigEntry<string> ServerUrl { get; private set; }
         public static ConfigEntry<uint> RDVServerPort { get; private set; }
+        public static ConfigEntry<bool> UseSteamNetworking { get; private set; }
         public static ConfigEntry<bool> ShowChangelog { get; private set; }
         public static ConfigEntry<string> PreviousVersion { get; private set; }
         public static ConfigEntry<bool> AllowSavesDuringNetplay { get; private set; }
@@ -70,6 +71,12 @@ namespace MegabonkTogether.Configuration
                 "RDVServerPort",
                 (uint)5678,
                 "The port of the relay server. Do not change this unless you know what you're doing"
+            );
+            UseSteamNetworking = config.Bind(
+                "Network",
+                "UseSteamNetworking",
+                true,
+                "Friendlies rooms go through Steam (Steam lobby and Steam relays, no matchmaking server). Every player of a room must use the same setting. Random matchmaking always uses the server."
             );
             ShowChangelog = config.Bind(
                 "Updates",

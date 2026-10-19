@@ -12,6 +12,8 @@ namespace MegabonkTogether.Common.Messages.WsMessages
     [MemoryPackUnion(6, typeof(GameStartingResponse))]
     [MemoryPackUnion(7, typeof(HostDisconnected))]
     [MemoryPackUnion(8, typeof(ClientDisconnected))]
+    [MemoryPackUnion(9, typeof(SteamHello))]
+    [MemoryPackUnion(10, typeof(SteamJoinRejected))]
     public partial interface IWsMessage
     {
     }
