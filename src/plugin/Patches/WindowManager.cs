@@ -248,6 +248,12 @@ namespace MegabonkTogether.Patches
             var originalButton = copyButtonObj.GetComponent<MyButtonNormal>();
             if (originalButton != null)
             {
+                // Cloned from the confirm button, which is disabled while the lobby is not full: drop the disabled look
+                if (originalButton.disabledOverlay != null)
+                {
+                    originalButton.disabledOverlay.SetActive(false);
+                }
+
                 UnityEngine.Object.DestroyImmediate(originalButton);
             }
 
@@ -255,6 +261,7 @@ namespace MegabonkTogether.Patches
             if (button != null)
             {
                 button.onClick = new();
+                button.interactable = true;
             }
 
             var localizeStringEvent = copyButtonObj.GetComponentInChildren<LocalizeStringEvent>();
