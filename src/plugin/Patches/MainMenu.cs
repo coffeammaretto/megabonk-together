@@ -31,10 +31,6 @@ namespace MegabonkTogether.Patches
             var go = UnityEngine.Object.Instantiate(playBtn.gameObject);
 
             var originalButton = go.GetComponent<MyButtonNormal>();
-            if (originalButton != null)
-            {
-                UnityEngine.Object.DestroyImmediate(originalButton);
-            }
 
             UnityEngine.UI.Button button = go.GetComponentInChildren<UnityEngine.UI.Button>();
             if (button != null)
@@ -44,6 +40,23 @@ namespace MegabonkTogether.Patches
 
             var customButton = go.AddComponent<PlayTogetherButton>();
             customButton.SetMainMenu(__instance);
+
+            // AddComponent does not carry the serialized references over: without them StartHover/StopHover throw
+            // (null background), which aborts ButtonManager mid-switch and leaves the menu selection stuck on this button
+            if (originalButton != null)
+            {
+                customButton.background = originalButton.background;
+                customButton.defaultColor = originalButton.defaultColor;
+                customButton.hoverColor = originalButton.hoverColor;
+                customButton.colorInited = originalButton.colorInited;
+                customButton.scaleOnHover = originalButton.scaleOnHover;
+                customButton.hoverScale = originalButton.hoverScale;
+                customButton.button = originalButton.button;
+                customButton.disabledOverlay = originalButton.disabledOverlay;
+                customButton.customSfx = originalButton.customSfx;
+
+                UnityEngine.Object.DestroyImmediate(originalButton);
+            }
 
             var textWrapper = go.GetComponent<ButtonTextWrapper>();
             textWrapper.t_text.text = "TOGETHER!";
