@@ -1384,7 +1384,7 @@ namespace MegabonkTogether.Services
 
         private void SendLobbyUpdate()
         {
-            var players = playerManagerService.GetAllPlayers();
+            var players = playerManagerService.GetAllPlayers().ToList();
 
             var message = new LobbyUpdates
             {
@@ -1393,22 +1393,21 @@ namespace MegabonkTogether.Services
 
             byte[] serialized = MemoryPackSerializer.Serialize<IGameNetworkMessage>(message);
 
-            var deliveryMethod = DeliveryMethod.Unreliable;
-
-            if (serialized.Length >= MAX_PACKET_SIZE_BYTES)
+            if (serialized.Length < MAX_PACKET_SIZE_BYTES)
             {
-                deliveryMethod = DeliveryMethod.ReliableOrdered;
+                SendToAllClients(serialized, DeliveryMethod.Unreliable);
+                return;
             }
 
-            SendToAllClients(serialized, deliveryMethod);
+            SendSnapshotInChunks(players, chunk => new LobbyUpdates { Players = chunk });
         }
 
         private void SendEnemiesUpdate()
         {
-            var enemies = enemyManagerService.GetAllEnemiesDeltaAndUpdate();
-            var bossFinalOrb = finalBossOrbManagerService.GetAllOrbs();
+            var enemies = enemyManagerService.GetAllEnemiesDeltaAndUpdate().ToList();
+            var bossFinalOrb = finalBossOrbManagerService.GetAllOrbs().ToList();
 
-            if (!enemies.Any() && !bossFinalOrb.Any())
+            if (enemies.Count == 0 && bossFinalOrb.Count == 0)
             {
                 return;
             }
@@ -1421,47 +1420,46 @@ namespace MegabonkTogether.Services
 
             byte[] serialized = MemoryPackSerializer.Serialize<IGameNetworkMessage>(message);
 
-            var deliveryMethod = DeliveryMethod.Unreliable;
-
-            if (serialized.Length >= MAX_PACKET_SIZE_BYTES)
+            if (serialized.Length < MAX_PACKET_SIZE_BYTES)
             {
-                deliveryMethod = DeliveryMethod.ReliableOrdered;
+                SendToAllClients(serialized, DeliveryMethod.Unreliable);
+                return;
             }
 
-            SendToAllClients(serialized, deliveryMethod);
+            SendSnapshotInChunks(enemies, chunk => new LobbyUpdates { Enemies = chunk });
+            SendSnapshotInChunks(bossFinalOrb, chunk => new LobbyUpdates { BossOrbs = chunk });
         }
 
         private void SendProjectilesUpdate()
         {
-            var projectiles = projectileManagerService.GetAllProjectilesDeltaAndUpdate();
+            var projectiles = projectileManagerService.GetAllProjectilesDeltaAndUpdate().ToList();
 
-            if (!projectiles.Any())
+            if (projectiles.Count == 0)
             {
                 return;
             }
 
             var message = new ProjectilesUpdate
             {
-                Projectiles = [.. projectiles],
+                Projectiles = projectiles,
             };
 
             byte[] serialized = MemoryPackSerializer.Serialize<IGameNetworkMessage>(message);
 
-            var deliveryMethod = DeliveryMethod.Unreliable;
-
-            if (serialized.Length >= MAX_PACKET_SIZE_BYTES)
+            if (serialized.Length < MAX_PACKET_SIZE_BYTES)
             {
-                deliveryMethod = DeliveryMethod.ReliableOrdered;
+                SendToAllClients(serialized, DeliveryMethod.Unreliable);
+                return;
             }
 
-            SendToAllClients(serialized, deliveryMethod);
+            SendSnapshotInChunks(projectiles, chunk => new ProjectilesUpdate { Projectiles = chunk });
         }
 
         private void SendTumbleWeedsUpdate()
         {
-            var tumbleWeeds = spawnedObjectManagerService.GetAllTumbleWeedsDeltaAndUpdate();
+            var tumbleWeeds = spawnedObjectManagerService.GetAllTumbleWeedsDeltaAndUpdate().ToList();
 
-            if (!tumbleWeeds.Any())
+            if (tumbleWeeds.Count == 0)
             {
                 return;
             }
@@ -1473,14 +1471,27 @@ namespace MegabonkTogether.Services
 
             byte[] serialized = MemoryPackSerializer.Serialize<IGameNetworkMessage>(message);
 
-            var deliveryMethod = DeliveryMethod.Unreliable;
-
-            if (serialized.Length >= MAX_PACKET_SIZE_BYTES)
+            if (serialized.Length < MAX_PACKET_SIZE_BYTES)
             {
-                deliveryMethod = DeliveryMethod.ReliableOrdered;
+                SendToAllClients(serialized, DeliveryMethod.Unreliable);
+                return;
             }
 
-            SendToAllClients(serialized, deliveryMethod);
+            SendSnapshotInChunks(tumbleWeeds, chunk => new TumbleWeedsUpdate { TumbleWeeds = [.. chunk] });
+        }
+
+        /// <summary>
+        /// Split a snapshot too big for one packet into several unreliable packets.
+        /// It used to be sent ReliableOrdered instead, sharing the ordered queue with every other game message
+        /// (pickups, xp, gold...): in late game the reliable window saturates and all of them get delayed by seconds.
+        /// Receivers apply snapshot entries independently, so a partial snapshot is fine.
+        /// </summary>
+        private void SendSnapshotInChunks<TItem>(List<TItem> items, Func<List<TItem>, IGameNetworkMessage> createChunk)
+        {
+            foreach (var (data, fits) in SnapshotChunker.Serialize(items, createChunk, MAX_PACKET_SIZE_BYTES))
+            {
+                SendToAllClients(data, fits ? DeliveryMethod.Unreliable : DeliveryMethod.ReliableOrdered);
+            }
         }
 
         public void SendToAllClients<T>(T data, DeliveryMethod deliveryMethod) where T : IGameNetworkMessage

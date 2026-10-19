@@ -100,31 +100,31 @@ namespace MegabonkTogether.Scripts
 
                 // UiManager.Instance.GetComponentInChildren<TargetOfInterestUi>().RefreshPrefabs();
 
-                while (lobbyUpdateAccumulator >= lobbyUpdatetickInterval || enemyUpdateAccumulator >= enemyUpdatetickInterval || projectileUpdateAccumulator >= projectileUpdatetickInterval || tumbleWeedUpdateAccumulator >= tumbleWeedUpdatetickInterval)
+                // Run each tick at most once per frame and drop the backlog. Catching up on missed ticks after a slow frame
+                // sent several full snapshots in a row, making the next frame even slower (late game FPS spiral).
+                // Snapshots carry the latest state, so skipped ticks lose nothing.
+                if (lobbyUpdateAccumulator >= lobbyUpdatetickInterval)
                 {
-                    if (lobbyUpdateAccumulator >= lobbyUpdatetickInterval)
-                    {
-                        lobbyUpdateAccumulator -= lobbyUpdatetickInterval;
-                        udpClientService.Update();
-                    }
+                    lobbyUpdateAccumulator = Mathf.Min(lobbyUpdateAccumulator - lobbyUpdatetickInterval, lobbyUpdatetickInterval);
+                    udpClientService.Update();
+                }
 
-                    if (isHost && enemyUpdateAccumulator >= enemyUpdatetickInterval)
-                    {
-                        enemyUpdateAccumulator -= enemyUpdatetickInterval;
-                        udpClientService.UpdateEnemies();
-                    }
+                if (isHost && enemyUpdateAccumulator >= enemyUpdatetickInterval)
+                {
+                    enemyUpdateAccumulator = Mathf.Min(enemyUpdateAccumulator - enemyUpdatetickInterval, enemyUpdatetickInterval);
+                    udpClientService.UpdateEnemies();
+                }
 
-                    if (isHost && projectileUpdateAccumulator >= projectileUpdatetickInterval)
-                    {
-                        projectileUpdateAccumulator -= projectileUpdatetickInterval;
-                        udpClientService.UpdateProjectiles();
-                    }
+                if (isHost && projectileUpdateAccumulator >= projectileUpdatetickInterval)
+                {
+                    projectileUpdateAccumulator = Mathf.Min(projectileUpdateAccumulator - projectileUpdatetickInterval, projectileUpdatetickInterval);
+                    udpClientService.UpdateProjectiles();
+                }
 
-                    if (isHost && tumbleWeedUpdateAccumulator >= tumbleWeedUpdatetickInterval)
-                    {
-                        tumbleWeedUpdateAccumulator -= tumbleWeedUpdatetickInterval;
-                        udpClientService.UpdateTumbleWeeds();
-                    }
+                if (isHost && tumbleWeedUpdateAccumulator >= tumbleWeedUpdatetickInterval)
+                {
+                    tumbleWeedUpdateAccumulator = Mathf.Min(tumbleWeedUpdateAccumulator - tumbleWeedUpdatetickInterval, tumbleWeedUpdatetickInterval);
+                    udpClientService.UpdateTumbleWeeds();
                 }
             }
             catch (System.Exception ex)
