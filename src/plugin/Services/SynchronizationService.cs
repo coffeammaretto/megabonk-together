@@ -1734,7 +1734,10 @@ namespace MegabonkTogether.Services
 
 
             var dynP = DynamicData.For(spawnedPickup);
-            dynP.Data.Clear();
+            if (pickupManagerService.GetPickupByReference(spawnedPickup).Value == null) //Stacked onto a tracked pickup: keep its owner
+            {
+                dynP.Data.Clear();
+            }
 
             pickupManagerService.SetSpawnedPickup(pickup.Id, spawnedPickup);
             dynP.Set("pickupId", pickup.Id);
@@ -1765,7 +1768,10 @@ namespace MegabonkTogether.Services
             {
                 logger.LogWarning($"Pickup not found in PickupManagerService when processing OnPickupApplied. Deleting");
                 DynamicData.For(instance).Data.Clear();
-                PickupManager.Instance.DespawnPickup(instance);
+                if (instance.gameObject.activeSelf)
+                {
+                    PickupManager.Instance.DespawnPickup(instance);
+                }
 
                 return;
             }

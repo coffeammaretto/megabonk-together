@@ -55,7 +55,11 @@ namespace MegabonkTogether.Patches
                 return;
             }
 
-            DynamicData.For(__result).Data.Clear();
+            // Stacking returns an already tracked, possibly owned pickup: only reset new/recycled objects
+            if (pickupManagerService.GetPickupByReference(__result).Value == null)
+            {
+                DynamicData.For(__result).Data.Clear();
+            }
 
             var isServer = synchronizationService.IsServerMode() ?? false;
             if (isServer)
@@ -77,8 +81,16 @@ namespace MegabonkTogether.Patches
                 return;
             }
 
+            if (!hasLoggedPoolHook)
+            {
+                hasLoggedPoolHook = true;
+                Plugin.Log.LogInfo("Pickup pool hook active");
+            }
+
             pickupManagerService.RemovePickupByReference(__result, false);
         }
+
+        private static bool hasLoggedPoolHook = false;
 
         /// <summary>
         /// Use random player instead of only local player (Trigerred by magnet shrines and other ?). Server side only.
