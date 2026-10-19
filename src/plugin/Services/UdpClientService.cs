@@ -748,6 +748,9 @@ namespace MegabonkTogether.Services
                     case PingPlaced pingPlaced:
                         EventManager.OnPingPlaced(pingPlaced);
                         break;
+                    case TeamMeterUpdate teamMeterUpdate:
+                        EventManager.OnTeamMeterUpdate(teamMeterUpdate);
+                        break;
                     default:
                         Plugin.Log.LogWarning($"Unknown message type received. message={message}");
                         break;

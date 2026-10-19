@@ -35,6 +35,10 @@ namespace MegabonkTogether.Configuration
         public static ConfigEntry<float> DownedReviveRadius { get; private set; }
         public static ConfigEntry<float> DownedReviveHpFraction { get; private set; }
         public static ConfigEntry<float> SharedPassiveRadius { get; private set; }
+        public static ConfigEntry<bool> TeamMeterEnabled { get; private set; }
+        public static ConfigEntry<float> TeamMeterKillsToFill { get; private set; }
+        public static ConfigEntry<float> TeamMeterGrowth { get; private set; }
+        public static ConfigEntry<float> TeamBuffSeconds { get; private set; }
 
         public static void Initialize(ConfigFile config)
         {
@@ -127,6 +131,14 @@ namespace MegabonkTogether.Configuration
                 "Fraction of max HP a revived player gets back.");
             SharedPassiveRadius = config.Bind(party, "SharedPassiveRadius", 0f,
                 "Character passives of the other players apply within this distance (meters) of their owner. 0 = everywhere.");
+            TeamMeterEnabled = config.Bind(party, "TeamMeterEnabled", true,
+                "Team meter: kills fill it while at least two players killed in the last seconds. Full = damage and speed buff for everyone.");
+            TeamMeterKillsToFill = config.Bind(party, "TeamMeterKillsToFill", 250f,
+                "Team kills needed to fill the team meter the first time.");
+            TeamMeterGrowth = config.Bind(party, "TeamMeterGrowth", 1.5f,
+                "The kills needed are multiplied by this after each team buff.");
+            TeamBuffSeconds = config.Bind(party, "TeamBuffSeconds", 10f,
+                "Team buff duration (+25% damage, +15% move speed).");
         }
 
         public static PartySettings ToPartySettings()
@@ -147,6 +159,10 @@ namespace MegabonkTogether.Configuration
                 DownedReviveRadius = DownedReviveRadius.Value,
                 DownedReviveHpFraction = DownedReviveHpFraction.Value,
                 SharedPassiveRadius = SharedPassiveRadius.Value,
+                TeamMeterEnabled = TeamMeterEnabled.Value,
+                TeamMeterKillsToFill = TeamMeterKillsToFill.Value,
+                TeamMeterGrowth = TeamMeterGrowth.Value,
+                TeamBuffSeconds = TeamBuffSeconds.Value,
             };
         }
 

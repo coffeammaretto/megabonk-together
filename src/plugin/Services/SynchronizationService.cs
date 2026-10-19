@@ -842,6 +842,7 @@ namespace MegabonkTogether.Services
             }
             encounterService.ResetForNextLevel();
             ((IDownedService)Plugin.Services.GetService(typeof(IDownedService)))?.ResetForNextLevel();
+            ((ITeamMeterService)Plugin.Services.GetService(typeof(ITeamMeterService)))?.ResetForNextLevel();
             wasAnyoneChoosing = false;
             specificDesertGraves.Clear();
             currentCoffin = null;
@@ -1737,6 +1738,7 @@ namespace MegabonkTogether.Services
             if (isHost)
             {
                 udpClientService.SendToAllClients(message, LiteNetLib.DeliveryMethod.ReliableOrdered);
+                ((ITeamMeterService)Plugin.Services.GetService(typeof(ITeamMeterService)))?.OnEnemyKilled(diedByOwnerId ?? playerManagerService.GetLocalPlayer()?.ConnectionId);
             }
             else
             {

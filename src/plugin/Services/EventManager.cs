@@ -73,6 +73,7 @@ namespace MegabonkTogether.Services
         private static event Action<PlayerDownedChanged> PlayerDownedChangedEvents;
         private static event Action<GiveItem> GiveItemEvents;
         private static event Action<PingPlaced> PingPlacedEvents;
+        private static event Action<TeamMeterUpdate> TeamMeterUpdateEvents;
 
         public static void OnSpawnedObject(SpawnedObject spawnedObject)
         {
@@ -894,6 +895,19 @@ namespace MegabonkTogether.Services
             MainThreadDispatcher.Enqueue(() =>
             {
                 PingPlacedEvents?.Invoke(pingPlaced);
+            });
+        }
+
+        public static void SubscribeTeamMeterUpdateEvents(Action<TeamMeterUpdate> action)
+        {
+            TeamMeterUpdateEvents += action;
+        }
+
+        public static void OnTeamMeterUpdate(TeamMeterUpdate teamMeterUpdate)
+        {
+            MainThreadDispatcher.Enqueue(() =>
+            {
+                TeamMeterUpdateEvents?.Invoke(teamMeterUpdate);
             });
         }
     }

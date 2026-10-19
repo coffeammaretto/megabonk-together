@@ -78,6 +78,7 @@ namespace MegabonkTogether.Common.Messages
     [MemoryPackUnion(73, typeof(PlayerDownedChanged))]
     [MemoryPackUnion(74, typeof(GiveItem))]
     [MemoryPackUnion(75, typeof(PingPlaced))]
+    [MemoryPackUnion(76, typeof(TeamMeterUpdate))]
     public partial interface IGameNetworkMessage
     {
 

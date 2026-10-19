@@ -35,6 +35,12 @@ namespace MegabonkTogether.Common.Messages.GameNetworkMessages
         /// Character passives of the other players apply within this distance of their owner, 0 for everywhere
         /// </summary>
         public float SharedPassiveRadius { get; set; } = 0f;
+
+        // Team meter
+        public bool TeamMeterEnabled { get; set; } = true;
+        public float TeamMeterKillsToFill { get; set; } = 250f;
+        public float TeamMeterGrowth { get; set; } = 1.5f;
+        public float TeamBuffSeconds { get; set; } = 10f;
     }
 
     public enum PartyStatMode : byte
