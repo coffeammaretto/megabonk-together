@@ -34,7 +34,9 @@ namespace MegabonkTogether.Services
             { ("MegabonkTogether", "VersionMismatch_Description"), "{0} has {1}, you have {2}. Install the same build on every PC." },
             { ("MegabonkTogether", "VersionMissing_Description"), "{0} has an older build of the mod. Install the same build on every PC." },
             { ("MegabonkTogether", "ItemGiven"), "Gift" },
-            { ("MegabonkTogether", "ItemGiven_Description"), "{0} gave you {1}" }
+            { ("MegabonkTogether", "ItemGiven_Description"), "{0} gave you {1}" },
+            { ("MegabonkTogether", "RunModifiers"), "Run modifiers" },
+            { ("MegabonkTogether", "RunModifiers_Description"), "{0}" }
         };
 
         private readonly Queue<IEnumerable<string>> NextLocalizedDescription = new();

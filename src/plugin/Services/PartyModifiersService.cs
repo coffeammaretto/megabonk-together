@@ -1,4 +1,6 @@
 using Assets.Scripts.Inventory__Items__Pickups.Stats;
+using Assets.Scripts.Utility;
+using MegabonkTogether.Common.Messages.GameNetworkMessages;
 using Assets.Scripts.Menu.Shop;
 using System;
 using System.Collections.Generic;
@@ -25,6 +27,7 @@ namespace MegabonkTogether.Services
 
         private readonly Dictionary<string, (EStat Stat, EStatModifyType Type, float Value)> applied = [];
         private IntPtr appliedInventory = IntPtr.Zero;
+        private RunModifier announcedModifiers = RunModifier.None;
         private float nextTickAt = 0f;
 
         public void Tick()
@@ -69,6 +72,8 @@ namespace MegabonkTogether.Services
                 wanted["EnemyAmount"] = (EStat.EnemyAmountMultiplier, EStatModifyType.Addition, settings.EnemyAmountMultiplier - 1f);
             }
 
+            AddRunModifiers(wanted, settings.RunModifiers, isHost);
+
             if (teamMeterService.IsBuffActive)
             {
                 wanted["TeamBuffDamage"] = (EStat.DamageMultiplier, EStatModifyType.Addition, 0.25f);
@@ -81,6 +86,72 @@ namespace MegabonkTogether.Services
             }
 
             return wanted;
+        }
+
+        /// <summary>
+        /// Player stats on every machine, enemy stats (and difficulty, summed across the party) on the host only
+        /// </summary>
+        private void AddRunModifiers(Dictionary<string, (EStat, EStatModifyType, float)> wanted, RunModifier modifiers, bool isHost)
+        {
+            if (modifiers == RunModifier.None)
+            {
+                return;
+            }
+
+            if (modifiers != announcedModifiers)
+            {
+                announcedModifiers = modifiers;
+                Plugin.StartNotification(("MegabonkTogether", "RunModifiers"), ("MegabonkTogether", "RunModifiers_Description"), [modifiers.ToString()]);
+                Plugin.Log.LogInfo($"Run modifiers: {modifiers}");
+            }
+
+            if (modifiers.HasFlag(RunModifier.GlassCannon))
+            {
+                wanted["GlassCannonDamage"] = (EStat.DamageMultiplier, EStatModifyType.Addition, 1f);
+                wanted["GlassCannonHp"] = (EStat.MaxHealth, EStatModifyType.Addition, -0.5f);
+            }
+
+            if (modifiers.HasFlag(RunModifier.Horde))
+            {
+                wanted["HordeXp"] = (EStat.XpIncreaseMultiplier, EStatModifyType.Addition, 0.25f);
+                if (isHost)
+                {
+                    wanted["HordeEnemies"] = (EStat.EnemyAmountMultiplier, EStatModifyType.Addition, 0.5f);
+                }
+            }
+
+            if (modifiers.HasFlag(RunModifier.ThickSkinned))
+            {
+                wanted["ThickSkinnedLuck"] = (EStat.Luck, EStatModifyType.Flat, 0.25f);
+                if (isHost)
+                {
+                    wanted["ThickSkinnedEnemyHp"] = (EStat.EnemyHpMultiplier, EStatModifyType.Addition, 1f);
+                }
+            }
+
+            if (modifiers.HasFlag(RunModifier.Frenzy) && isHost)
+            {
+                var steps = Mathf.FloorToInt(Math.Max(0f, MyTime.runTimer) / 300f);
+                if (steps > 0)
+                {
+                    wanted["FrenzyEnemySpeed"] = (EStat.EnemySpeedMultiplier, EStatModifyType.Addition, 0.1f * steps);
+                }
+            }
+
+            if (modifiers.HasFlag(RunModifier.Lucky))
+            {
+                wanted["LuckyLuck"] = (EStat.Luck, EStatModifyType.Flat, 0.5f);
+                if (isHost)
+                {
+                    wanted["LuckyDifficulty"] = (EStat.Difficulty, EStatModifyType.Flat, 0.3f);
+                }
+            }
+
+            if (modifiers.HasFlag(RunModifier.Poverty))
+            {
+                wanted["PovertyGold"] = (EStat.GoldIncreaseMultiplier, EStatModifyType.Addition, -0.5f);
+                wanted["PovertyXp"] = (EStat.XpIncreaseMultiplier, EStatModifyType.Addition, 0.25f);
+            }
         }
 
         private void Apply(StatInventory statInventory, Dictionary<string, (EStat Stat, EStatModifyType Type, float Value)> wanted)
@@ -114,6 +185,7 @@ namespace MegabonkTogether.Services
         {
             applied.Clear();
             appliedInventory = IntPtr.Zero;
+            announcedModifiers = RunModifier.None;
             nextTickAt = 0f;
         }
     }

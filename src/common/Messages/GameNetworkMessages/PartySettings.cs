@@ -41,6 +41,45 @@ namespace MegabonkTogether.Common.Messages.GameNetworkMessages
         public float TeamMeterKillsToFill { get; set; } = 250f;
         public float TeamMeterGrowth { get; set; } = 1.5f;
         public float TeamBuffSeconds { get; set; } = 10f;
+
+        // Run modifiers picked by the host
+        public RunModifier RunModifiers { get; set; } = RunModifier.None;
+    }
+
+    [System.Flags]
+    public enum RunModifier
+    {
+        None = 0,
+
+        /// <summary>
+        /// Damage x2, max HP x0.5
+        /// </summary>
+        GlassCannon = 1 << 0,
+
+        /// <summary>
+        /// Enemies x1.5, XP +25%
+        /// </summary>
+        Horde = 1 << 1,
+
+        /// <summary>
+        /// Enemy HP x2, luck +0.25
+        /// </summary>
+        ThickSkinned = 1 << 2,
+
+        /// <summary>
+        /// Enemies 10% faster every 5 minutes
+        /// </summary>
+        Frenzy = 1 << 3,
+
+        /// <summary>
+        /// Luck +0.5, difficulty +0.3
+        /// </summary>
+        Lucky = 1 << 4,
+
+        /// <summary>
+        /// Gold -50%, XP +25%
+        /// </summary>
+        Poverty = 1 << 5,
     }
 
     public enum PartyStatMode : byte
