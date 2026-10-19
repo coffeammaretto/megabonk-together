@@ -86,6 +86,7 @@ namespace MegabonkTogether.Services
                 && previous.GetInstanceID() == instanceId)
             {
                 spawnedPickups.TryRemove(previousId, out _);
+                Plugin.Log.LogInfo($"Pickup object reused for {pickupId}, dropping stale pickup {previousId}");
             }
 
             pickupIdsByInstanceId[instanceId] = pickupId;
