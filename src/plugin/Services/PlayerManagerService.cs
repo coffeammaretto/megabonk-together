@@ -146,12 +146,18 @@ namespace MegabonkTogether.Services
 
         public void MarkDead(uint connectionId)
         {
-            deadPlayers.TryAdd(connectionId, 0);
+            if (deadPlayers.TryAdd(connectionId, 0))
+            {
+                logger.LogInfo($"Player {connectionId} died");
+            }
         }
 
         public void MarkAlive(uint connectionId)
         {
-            deadPlayers.TryRemove(connectionId, out _);
+            if (deadPlayers.TryRemove(connectionId, out _))
+            {
+                logger.LogInfo($"Player {connectionId} revived");
+            }
         }
 
         public bool IsDead(uint connectionId)
