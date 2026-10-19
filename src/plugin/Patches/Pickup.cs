@@ -69,6 +69,8 @@ namespace MegabonkTogether.Patches
             {
                 DynamicData.For(__instance).Data.Clear();
                 PickupManager.Instance.DespawnPickup(__instance);
+                // The owner's PickupApplied may arrive after the pool reused this object for another pickup: forget the ids now
+                pickupManagerService.RemovePickupByReference(__instance, false);
                 return;
             }
 

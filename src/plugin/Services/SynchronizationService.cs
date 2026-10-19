@@ -1806,7 +1806,7 @@ namespace MegabonkTogether.Services
             var pickup = pickupManagerService.GetSpawnedPickupById(applied.PickupId);
             if (pickup == null)
             {
-                logger.LogWarning($"Pickup {applied.PickupId} for owner {applied.OwnerId} not found in PickupManagerService when processing OnReceivedPickupApplied.");
+                logger.LogDebug($"Pickup {applied.PickupId} for owner {applied.OwnerId} not found in PickupManagerService when processing OnReceivedPickupApplied.");
                 return;
             }
 
@@ -1963,7 +1963,7 @@ namespace MegabonkTogether.Services
             var pickup = pickupManagerService.GetSpawnedPickupById(pickupId);
             if (pickup == null)
             {
-                logger.LogWarning($"Pickup {pickupId} not found in PickupManagerService when processing HandleWantToStartFollowingPickup.");
+                logger.LogDebug($"Pickup {pickupId} not found in PickupManagerService when processing HandleWantToStartFollowingPickup.");
                 return;
             }
 
