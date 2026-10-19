@@ -25,9 +25,8 @@ namespace MegabonkTogether.Services
         Six
     }
 
-    internal class GameBalanceService(IPlayerManagerService playerManagerService) : IGameBalanceService
+    internal class GameBalanceService(IPlayerManagerService playerManagerService, IPartySettingsService partySettingsService) : IGameBalanceService
     {
-        private const float hpScalingPerAdditionalPlayer = 0.1f;
         private int PlayersCount => playerManagerService.GetAllPlayersAlive().Count();
         private static int StageIndex => MapController.runConfig?.mapData.stages.IndexOf(MapController.currentStage) ?? 0;
         private const float baseBossLampInitialChargeTimeSeconds = 3.0f;
@@ -83,7 +82,7 @@ namespace MegabonkTogether.Services
                 _ => 1f
             };
 
-            float playerScaling = 1f + (PlayersCount - 1) * hpScalingPerAdditionalPlayer;
+            float playerScaling = 1f + (PlayersCount - 1) * partySettingsService.Current.EnemyHpPerExtraPlayer;
 
             float stageMultiplier = StageIndex switch
             {
@@ -98,6 +97,12 @@ namespace MegabonkTogether.Services
 
         public float GetFreeChestSpawnRateMultiplier()
         {
+            var isSharedExperience = Plugin.Instance.Mode.EnabledSharedExperience ?? false;
+            if (isSharedExperience && !partySettingsService.Current.ScaleFreeChestsWithPlayers)
+            {
+                return 1f; //Every chest already gives an item to everyone
+            }
+
             float baseMultiplier = GetDifficultyLevelByPlayers() switch
             {
                 DifficultyLevel.Duo => 1.5f,

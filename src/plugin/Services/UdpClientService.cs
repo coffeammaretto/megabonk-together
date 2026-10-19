@@ -736,6 +736,9 @@ namespace MegabonkTogether.Services
                     case ModVersionInfo modVersionInfo:
                         EventManager.OnModVersionInfo(modVersionInfo);
                         break;
+                    case PartySettings partySettings:
+                        EventManager.OnPartySettings(partySettings);
+                        break;
                     default:
                         Plugin.Log.LogWarning($"Unknown message type received. message={message}");
                         break;

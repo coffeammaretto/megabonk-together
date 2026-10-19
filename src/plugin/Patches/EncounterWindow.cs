@@ -38,7 +38,7 @@ namespace MegabonkTogether.Patches
 
             if (GameManager.Instance.player.IsDead())
             {
-                if (synchronizationService.IsSharedExperienceEnabled())
+                if (synchronizationService.IsPartyPauseEnabled())
                 {
                     MyTime.Pause();
                     ScreenTextHelper.Show("Waiting for other player(s) choices...", new Vector2(0, -350));
@@ -75,7 +75,7 @@ namespace MegabonkTogether.Patches
 
             if (GameManager.Instance.player.IsDead())
             {
-                if (synchronizationService.IsSharedExperienceEnabled())
+                if (synchronizationService.IsPartyPauseEnabled())
                 {
                     MyTime.Pause();
                     synchronizationService.RewardFinished();
@@ -99,7 +99,7 @@ namespace MegabonkTogether.Patches
                 return;
             }
 
-            if (synchronizationService.IsSharedExperienceEnabled())
+            if (synchronizationService.IsPartyPauseEnabled())
             {
                 UiManager.Instance.encounterWindows?.activeEncounterWindow?.gameObject.SetActive(true);
                 return;
@@ -152,7 +152,7 @@ namespace MegabonkTogether.Patches
                 return true;
             }
 
-            if (!synchronizationService.IsSharedExperienceEnabled())
+            if (!synchronizationService.IsPartyPauseEnabled())
             {
                 return true;
             }

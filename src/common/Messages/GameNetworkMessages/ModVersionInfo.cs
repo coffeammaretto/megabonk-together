@@ -11,7 +11,7 @@ namespace MegabonkTogether.Common.Messages.GameNetworkMessages
         /// <summary>
         /// Change it whenever the network messages change
         /// </summary>
-        public const string CurrentVersion = "5.1.0-coop-fix.3";
+        public const string CurrentVersion = "5.1.0-coop-fix.4";
 
         public uint OwnerId { get; set; }
         public string Version { get; set; }

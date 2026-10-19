@@ -46,10 +46,12 @@ namespace MegabonkTogether.Services
 
         private readonly IUdpClientService udpClientService;
         private readonly IPlayerManagerService playerManagerService;
+        private readonly IPartySettingsService partySettingsService;
 
         private readonly Dictionary<uint, float[]> remoteStats = [];
         private readonly Dictionary<uint, Dictionary<string, StatModifierModel>> appliedRemotePassives = [];
-        private readonly Dictionary<EStat, float> remoteSums = [];
+        private readonly Dictionary<EStat, float[]> remoteValues = [];
+        private (PartyStatMode Mode, float LuckCap, float DifficultyCap) currentRules;
         private readonly Dictionary<EStat, float> ownValues = [];
         private readonly Dictionary<EStat, float> partyTotals = [];
         private readonly Dictionary<EStat, float> lastWrittenTotals = [];
@@ -65,10 +67,11 @@ namespace MegabonkTogether.Services
 
         public bool IsReadingOwnStat => readingOwnStatDepth > 0;
 
-        public PartyStatsService(IUdpClientService udpClientService, IPlayerManagerService playerManagerService)
+        public PartyStatsService(IUdpClientService udpClientService, IPlayerManagerService playerManagerService, IPartySettingsService partySettingsService)
         {
             this.udpClientService = udpClientService;
             this.playerManagerService = playerManagerService;
+            this.partySettingsService = partySettingsService;
 
             EventManager.SubscribePlayerStatsChangedEvents(OnReceivedPlayerStats);
         }
@@ -97,6 +100,7 @@ namespace MegabonkTogether.Services
                 }
 
                 ForgetDisconnectedPlayers(localPlayer.ConnectionId, localInventory);
+                RefreshRemoteSums(localPlayer.ConnectionId, localInventory); //Also catches party rule changes
                 SendOwnStatsIfChanged(localPlayer.ConnectionId, localInventory, now);
             }
             catch (Exception ex)
@@ -140,7 +144,7 @@ namespace MegabonkTogether.Services
             }
 
             ownValues[stat] = ownValue;
-            var total = ownValue + remoteSums.GetValueOrDefault(stat);
+            var total = Combine(stat, ownValue, remoteValues.GetValueOrDefault(stat) ?? []);
             partyTotals[stat] = total;
 
             if (playerStats.stats != null && playerStats.stats.ContainsKey(stat))
@@ -152,7 +156,7 @@ namespace MegabonkTogether.Services
             if (!lastLoggedTotals.TryGetValue(stat, out var lastLogged) || Mathf.Abs(lastLogged - total) > EPSILON)
             {
                 lastLoggedTotals[stat] = total;
-                Plugin.Log.LogInfo($"Party {stat}: own {ownValue} + others {remoteSums.GetValueOrDefault(stat)} = {total} (GetStat now {playerStats.GetStat(stat)})");
+                Plugin.Log.LogInfo($"Party {stat}: own {ownValue}, others [{string.Join(", ", remoteValues.GetValueOrDefault(stat) ?? [])}], {currentRules.Mode} = {total} (GetStat now {playerStats.GetStat(stat)})");
             }
         }
 
@@ -164,7 +168,32 @@ namespace MegabonkTogether.Services
                 return false;
             }
 
-            return remoteSums.GetValueOrDefault(stat) != 0f;
+            return (remoteValues.GetValueOrDefault(stat)?.Length ?? 0) > 0 || GetCap(stat) > 0f;
+        }
+
+        /// <summary>
+        /// Party value of a summed stat from the local player's own value and the other players' ones
+        /// </summary>
+        private float Combine(EStat stat, float own, float[] others)
+        {
+            var all = others.Prepend(own).ToList();
+            var sum = all.Sum();
+            var max = all.Max();
+
+            var total = currentRules.Mode switch
+            {
+                PartyStatMode.MaxPlusHalf => max + 0.5f * (sum - max),
+                PartyStatMode.Average => sum / all.Count,
+                _ => sum,
+            };
+
+            var cap = GetCap(stat);
+            return cap > 0f ? Mathf.Min(total, cap) : total;
+        }
+
+        private float GetCap(EStat stat)
+        {
+            return stat == EStat.Luck ? currentRules.LuckCap : currentRules.DifficultyCap;
         }
 
         public bool TryGetRemoteStat(uint playerId, EStat stat, out float value)
@@ -379,20 +408,28 @@ namespace MegabonkTogether.Services
         {
             var remotePlayerIds = playerManagerService.GetAllPlayers().Select(p => p.ConnectionId).Where(id => id != localPlayerId).ToHashSet();
 
+            var settings = partySettingsService.Current;
+            var rules = (settings.PartyStatMode, settings.PartyLuckCap, settings.PartyDifficultyCap);
+            var rulesChanged = rules != currentRules;
+            currentRules = rules;
+
             foreach (var stat in SummedStats)
             {
-                var sum = remoteStats
+                var values = remoteStats
                     .Where(entry => remotePlayerIds.Contains(entry.Key) && entry.Value.Length > (int)stat && float.IsFinite(entry.Value[(int)stat]))
-                    .Sum(entry => entry.Value[(int)stat]);
-                if (Mathf.Abs(sum - remoteSums.GetValueOrDefault(stat)) < EPSILON)
+                    .Select(entry => entry.Value[(int)stat])
+                    .ToArray();
+                var previous = remoteValues.GetValueOrDefault(stat) ?? [];
+                var valuesChanged = values.Length != previous.Length || values.Where((value, i) => Mathf.Abs(value - previous[i]) > EPSILON).Any();
+                if (!valuesChanged && !rulesChanged)
                 {
                     continue;
                 }
 
-                remoteSums[stat] = sum;
+                remoteValues[stat] = values;
                 if (ownValues.TryGetValue(stat, out var own))
                 {
-                    partyTotals[stat] = own + sum;
+                    partyTotals[stat] = Combine(stat, own, values);
                 }
                 localInventory.playerStats.QueueUpdateStat(stat); //Recomputed by the game, then OnLocalStatUpdated adds the share
             }
@@ -421,7 +458,8 @@ namespace MegabonkTogether.Services
         {
             remoteStats.Clear();
             appliedRemotePassives.Clear();
-            remoteSums.Clear();
+            remoteValues.Clear();
+            currentRules = default;
             ownValues.Clear();
             partyTotals.Clear();
             lastWrittenTotals.Clear();

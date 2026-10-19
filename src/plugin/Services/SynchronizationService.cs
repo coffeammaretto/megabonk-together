@@ -126,6 +126,11 @@ namespace MegabonkTogether.Services
         public void OnSkinSelected(SkinData skin);
         public void OnRespawn(uint ownerId, Vector3 position);
         public bool IsSharedExperienceEnabled();
+
+        /// <summary>
+        /// Shared experience with the party pause: everyone pauses while someone picks a reward
+        /// </summary>
+        public bool IsPartyPauseEnabled();
         public void PlayerXpAddXp(int xp, int amount, float leftOverXp);
         public void RewardFinished();
         public void UpdateEncounterSync();
@@ -167,6 +172,7 @@ namespace MegabonkTogether.Services
         private bool wasUnstuckKeyDown = false;
         private bool isStuckHintShown = false;
         private bool wasAnyoneChoosing = false;
+        private IPartySettingsService partySettingsService;
         private float? stuckSince = null;
 
         private const float MOD_VERSION_TIMEOUT = 20f;
@@ -593,6 +599,7 @@ namespace MegabonkTogether.Services
             Plugin.Instance.PreventDeath();
 
             SendModVersion();
+            ((IPartySettingsService)Plugin.Services.GetService(typeof(IPartySettingsService))).SendToClients();
         }
 
         private void SendModVersion()
@@ -2610,7 +2617,7 @@ namespace MegabonkTogether.Services
 
             if (interactableObj == null)
             {
-                if (IsSharedExperienceEnabled())
+                if (IsPartyPauseEnabled())
                 {
                     MyTime.Pause();
                     ScreenTextHelper.Show("Waiting for other player(s) choices...", new Vector2(0, -350));
@@ -4588,6 +4595,12 @@ namespace MegabonkTogether.Services
             }
         }
 
+        public bool IsPartyPauseEnabled()
+        {
+            partySettingsService ??= (IPartySettingsService)Plugin.Services.GetService(typeof(IPartySettingsService));
+            return IsSharedExperienceEnabled() && partySettingsService?.Current.RewardPauseMode != RewardPauseMode.Own;
+        }
+
         public bool IsSharedExperienceEnabled()
         {
             var sharedExperienceEnabled = Plugin.Instance.Mode.EnabledSharedExperience;
@@ -4637,6 +4650,11 @@ namespace MegabonkTogether.Services
         /// </summary>
         public void RewardFinished()
         {
+            if (!IsPartyPauseEnabled())
+            {
+                return;
+            }
+
             if (encounterService.GetLocalState() == EncounterSyncState.Choosing)
             {
                 return;
@@ -4658,6 +4676,15 @@ namespace MegabonkTogether.Services
 
             if (UiManager.Instance == null || UiManager.Instance.encounterWindows == null)
             {
+                return;
+            }
+
+            if (!IsPartyPauseEnabled())
+            {
+                if (encounterService.IsWaiting) //Switched to picking without pause while waiting
+                {
+                    OnCloseEncounter();
+                }
                 return;
             }
 

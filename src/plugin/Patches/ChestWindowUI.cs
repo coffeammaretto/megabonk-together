@@ -24,7 +24,7 @@ namespace MegabonkTogether.Patches
                 return;
             }
 
-            if (synchronizationService.IsSharedExperienceEnabled())
+            if (synchronizationService.IsPartyPauseEnabled())
             {
                 return;
             }
@@ -75,7 +75,7 @@ namespace MegabonkTogether.Patches
                 return;
             }
 
-            if (synchronizationService.IsSharedExperienceEnabled())
+            if (synchronizationService.IsPartyPauseEnabled())
             {
                 return;
             }
@@ -102,7 +102,7 @@ namespace MegabonkTogether.Patches
                 return;
             }
 
-            if (synchronizationService.IsSharedExperienceEnabled())
+            if (synchronizationService.IsPartyPauseEnabled())
             {
                 return;
             }

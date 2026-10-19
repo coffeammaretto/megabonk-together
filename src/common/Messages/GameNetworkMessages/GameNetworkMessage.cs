@@ -74,6 +74,7 @@ namespace MegabonkTogether.Common.Messages
     [MemoryPackUnion(69, typeof(EncounterPaused))]
     [MemoryPackUnion(70, typeof(PlayerStatsChanged))]
     [MemoryPackUnion(71, typeof(ModVersionInfo))]
+    [MemoryPackUnion(72, typeof(PartySettings))]
     public partial interface IGameNetworkMessage
     {
 

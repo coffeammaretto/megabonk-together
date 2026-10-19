@@ -1,4 +1,5 @@
 using BepInEx.Configuration;
+using MegabonkTogether.Common.Messages.GameNetworkMessages;
 
 namespace MegabonkTogether.Configuration
 {
@@ -17,6 +18,16 @@ namespace MegabonkTogether.Configuration
         public static ConfigEntry<bool> AllowSavesDuringNetplay { get; private set; }
         public static ConfigEntry<bool> EnabledSharedExperience { get; private set; }
         public static ConfigEntry<float> RewardWindowInputDelay { get; private set; }
+
+        // Party rules: the host's values apply to everyone
+        public static ConfigEntry<bool> ScaleFreeChestsWithPlayers { get; private set; }
+        public static ConfigEntry<float> ChestPricePerExtraPlayer { get; private set; }
+        public static ConfigEntry<PartyStatMode> PartyStatMode { get; private set; }
+        public static ConfigEntry<float> PartyLuckCap { get; private set; }
+        public static ConfigEntry<float> PartyDifficultyCap { get; private set; }
+        public static ConfigEntry<float> EnemyHpPerExtraPlayer { get; private set; }
+        public static ConfigEntry<float> EnemyAmountMultiplier { get; private set; }
+        public static ConfigEntry<RewardPauseMode> RewardPauseMode { get; private set; }
 
         public static void Initialize(ConfigFile config)
         {
@@ -76,6 +87,39 @@ namespace MegabonkTogether.Configuration
                 1f,
                 "Seconds during which clicks and presses are ignored after a level up, chest or other reward window appears in netplay, to prevent accidental picks. 0 to disable."
             );
+
+            const string party = "Party (host settings, apply to everyone)";
+            ScaleFreeChestsWithPlayers = config.Bind(party, "ScaleFreeChestsWithPlayers", false,
+                "Spawn more free chests with more players. Off by default with shared experience: every chest already gives an item to everyone.");
+            ChestPricePerExtraPlayer = config.Bind(party, "ChestPricePerExtraPlayer", 0.25f,
+                "Shared experience: chest price increase per player beyond the first (0.25 = +25%), since a bought chest gives an item to everyone.");
+            PartyStatMode = config.Bind(party, "PartyStatMode", Common.Messages.GameNetworkMessages.PartyStatMode.Sum,
+                "How luck and difficulty combine across the party: Sum, MaxPlusHalf (highest + half of the others) or Average.");
+            PartyLuckCap = config.Bind(party, "PartyLuckCap", 0f,
+                "Maximum party luck, 0 for no cap.");
+            PartyDifficultyCap = config.Bind(party, "PartyDifficultyCap", 0f,
+                "Maximum party difficulty, 0 for no cap.");
+            EnemyHpPerExtraPlayer = config.Bind(party, "EnemyHpPerExtraPlayer", 0.1f,
+                "Enemy HP increase per alive player beyond the first (0.1 = +10%).");
+            EnemyAmountMultiplier = config.Bind(party, "EnemyAmountMultiplier", 1f,
+                "Multiplier on the amount of enemies (1 = unchanged).");
+            RewardPauseMode = config.Bind(party, "RewardPauseMode", Common.Messages.GameNetworkMessages.RewardPauseMode.Party,
+                "Shared experience: Party = everyone pauses while someone picks a reward, Own = pick without pausing while invulnerable, the others keep playing.");
+        }
+
+        public static PartySettings ToPartySettings()
+        {
+            return new PartySettings
+            {
+                ScaleFreeChestsWithPlayers = ScaleFreeChestsWithPlayers.Value,
+                ChestPricePerExtraPlayer = ChestPricePerExtraPlayer.Value,
+                PartyStatMode = PartyStatMode.Value,
+                PartyLuckCap = PartyLuckCap.Value,
+                PartyDifficultyCap = PartyDifficultyCap.Value,
+                EnemyHpPerExtraPlayer = EnemyHpPerExtraPlayer.Value,
+                EnemyAmountMultiplier = EnemyAmountMultiplier.Value,
+                RewardPauseMode = RewardPauseMode.Value,
+            };
         }
 
         public static void Save()

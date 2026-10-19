@@ -23,7 +23,7 @@ namespace MegabonkTogether.Patches
                 return true;
             }
 
-            if (synchronizationService.IsSharedExperienceEnabled())
+            if (synchronizationService.IsPartyPauseEnabled())
             {
                 return true;
             }
