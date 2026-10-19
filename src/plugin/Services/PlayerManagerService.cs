@@ -504,13 +504,19 @@ namespace MegabonkTogether.Services
         public void Reset()
         {
             players.Clear();
-            try
+            foreach (var spawnedPlayer in spawnedPlayers.Values.ToList())
             {
-                spawnedPlayers.ToList().ForEach(p => GameObject.Destroy(p.Value.gameObject));
-            }
-            catch (Exception ex)
-            {
-                logger.LogError($"Error while destroying spawned player game objects during reset: {ex}");
+                try
+                {
+                    if (spawnedPlayer != null) //Already destroyed with the level when leaving a run
+                    {
+                        GameObject.Destroy(spawnedPlayer.gameObject);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    logger.LogError($"Error while destroying spawned player game objects during reset: {ex}");
+                }
             }
             spawnedPlayers.Clear();
             projectileToSpawnQueue.Clear();

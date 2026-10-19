@@ -26,6 +26,7 @@ namespace MegabonkTogether.Patches
         private static readonly IUdpClientService udpClientService = Plugin.Services.GetService<IUdpClientService>();
         private static bool hasShownUpdateModal = false;
         private static GameObject friendliesInfoDisplay;
+        private static bool hasFriendliesInfoDisplayFailed = false;
         private static GameObject readyStatusDisplay;
         private static MyButton previousSelectedButton = null;
 
@@ -84,6 +85,8 @@ namespace MegabonkTogether.Patches
                 });
             }
 
+            hasFriendliesInfoDisplayFailed = false;
+
             if (newWindow.name == "W_Character")
             {
                 if (Plugin.Instance.Mode.Mode == NetworkModeType.Friendlies)
@@ -128,6 +131,20 @@ namespace MegabonkTogether.Patches
             {
                 Plugin.Log.LogInfo("Resetting selected button");
                 ButtonManager.selectedButton2 = WindowManager.activeWindow.allButtons.Count > 0 ? WindowManager.activeWindow.allButtons[0] : null;
+            }
+
+            // The character menu can already be open when the friendlies lobby gets created (e.g. back from a run)
+            if (WindowManager.activeWindow?.name == "W_Character" && Plugin.Instance.Mode.Mode == NetworkModeType.Friendlies && !friendliesInfoDisplay && !hasFriendliesInfoDisplayFailed)
+            {
+                try
+                {
+                    CreateFriendliesInfoDisplay(Plugin.Instance.GetMainMenu().tabCharacters.transform, WindowManager.activeWindow);
+                }
+                catch (System.Exception ex)
+                {
+                    hasFriendliesInfoDisplayFailed = true; //Don't retry every frame
+                    Plugin.Log.LogError($"Could not create the friendlies info display: {ex}");
+                }
             }
 
             if (WindowManager.activeWindow?.name == "W_Character" && Plugin.Instance.Mode.Mode == NetworkModeType.Friendlies && Plugin.Instance.Mode.Role == Role.Host)
